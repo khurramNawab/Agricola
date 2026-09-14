@@ -5,21 +5,98 @@ import BestSellersSection from "../components/sections/BestSellersSection";
 import WhyChooseUsSection from "../components/sections/WhyChooseUsSection";
 import TestimonialsSection from "../components/sections/TestimonialsSection";
 import FAQSection from "../components/sections/FAQSection";
-
+import PromoBannerSection from "../components/sections/PromoBannerSection";
 
 export const Landing = () => {
   return (
-    <div id="webcrumbs" className="bg-white min-h-screen flex flex-col">
-      <main className="flex-1">
+    <div id="webcrumbs" className="bg-[#fbf9f6] min-h-screen flex flex-col">
+      {/* Top Harvest Announcement Pill */}
+      <div className="w-full flex items-center justify-center pt-4 pb-2 px-4">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#c9ecc4]/80 backdrop-blur-md text-[#4e6c4c] shadow-xs text-xs sm:text-sm font-semibold border border-[#84b817]/20">
+          <span className="w-2 h-2 rounded-full bg-[#84b817] animate-pulse"></span>
+          <span>
+            Fresh Spring Harvest Arrived: Mithila Jumbo Makhana & Lakadong
+            Turmeric
+          </span>
+          <a
+            href="#bestsellers"
+            className="text-[#1e3a1f] font-bold underline ml-1 hover:text-[#84b817] transition-colors"
+          >
+            Shop Batches →
+          </a>
+        </div>
+      </div>
+
+      <main className="flex-1 w-full max-w-[1540px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
         <Hero />
+
+        {/* Live Farm Origin & Freshness Metric Bar */}
+        <section className="w-full py-5 my-3 bg-white/60 border-y border-[#1e3a1f]/05">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 items-center">
+            <div className="flex items-center gap-3.5 bg-white/90 backdrop-blur-md p-3.5 rounded-2xl border border-white/80 shadow-xs">
+              <div className="w-12 h-12 rounded-xl bg-[#c9ecc4] flex items-center justify-center text-xl shrink-0">
+                🌾
+              </div>
+              <div>
+                <span className="text-2xl font-extrabold text-[#1b1c1a] block leading-tight">
+                  2,480+
+                </span>
+                <span className="text-xs text-[#434936] font-medium">
+                  Empowered Agrarians
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3.5 bg-white/90 backdrop-blur-md p-3.5 rounded-2xl border border-white/80 shadow-xs">
+              <div className="w-12 h-12 rounded-xl bg-[#c9ecc4] flex items-center justify-center text-xl shrink-0">
+                🏷️
+              </div>
+              <div>
+                <span className="text-2xl font-extrabold text-[#1b1c1a] block leading-tight">
+                  100%
+                </span>
+                <span className="text-xs text-[#434936] font-medium">
+                  Traceable GI Tagged
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3.5 bg-white/90 backdrop-blur-md p-3.5 rounded-2xl border border-white/80 shadow-xs">
+              <div className="w-12 h-12 rounded-xl bg-[#c9ecc4] flex items-center justify-center text-xl shrink-0">
+                🧪
+              </div>
+              <div>
+                <span className="text-2xl font-extrabold text-[#1b1c1a] block leading-tight">
+                  0%
+                </span>
+                <span className="text-xs text-[#434936] font-medium">
+                  Chemical Adulteration
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3.5 bg-white/90 backdrop-blur-md p-3.5 rounded-2xl border border-white/80 shadow-xs">
+              <div className="w-12 h-12 rounded-xl bg-[#c9ecc4] flex items-center justify-center text-xl shrink-0">
+                ⚡
+              </div>
+              <div>
+                <span className="text-2xl font-extrabold text-[#1b1c1a] block leading-tight">
+                  &lt;24h
+                </span>
+                <span className="text-xs text-[#434936] font-medium">
+                  Moisture Sealed Dispatch
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <CategoriesSection />
         <BestSellersSection />
         <WhyChooseUsSection />
         <TestimonialsSection />
         <FAQSection />
+
+        <PromoBannerSection />
       </main>
       <Footer />
     </div>
   );
 };
-

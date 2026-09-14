@@ -21,8 +21,17 @@ const authenticate = async (req, res, next) => {
       });
     }
 
-    // Dev bypass token handling
+    // Dev/Demo bypass token handling (strictly disabled in production)
     if (token === 'dev-admin-bypass-token' || token === 'bypass') {
+      if (process.env.NODE_ENV === 'production') {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: 'INVALID_TOKEN',
+            message: 'Bypass tokens are strictly disabled in production mode.'
+          }
+        });
+      }
       let user = await User.findOne({ role: 'admin' });
       if (!user) {
         user = await User.findOne({ phone: '+919896230791' });

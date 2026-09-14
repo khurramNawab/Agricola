@@ -287,41 +287,32 @@ const TaxUtils = {
 
 // Coupon utilities
 const CouponUtils = {
-  async validateCoupon(code, subtotal, _userId) {
-    const coupons = {
-      'SAVE10': {
-        type: 'percentage',
-        discount: 10,
-        minOrder: 200,
-        maxDiscount: 100,
-        validUntil: '2025-12-31'
-      },
-      'FLAT50': {
-        type: 'fixed',
-        discount: 50,
-        minOrder: 300,
-        maxDiscount: 50,
-        validUntil: '2025-12-31'
-      },
-      'NEWUSER': {
-        type: 'percentage',
-        discount: 15,
-        minOrder: 100,
-        maxDiscount: 150,
-        validUntil: '2025-12-31',
-        firstOrderOnly: true
-      },
-      'WELCOME20': {
-        type: 'percentage',
-        discount: 20,
-        minOrder: 500,
-        maxDiscount: 200,
-        validUntil: '2025-12-31'
-      }
-    };
+  async validateCoupon(code, subtotal, userId) {
+    if (!code || typeof code !== 'string') {
+      return { valid: false, message: 'Invalid coupon code', code: 'INVALID_COUPON' };
+    }
 
-    const coupon = coupons[code.toUpperCase()];
-    
+    const cleanCode = code.trim().toUpperCase();
+    const Coupon = require('../models/Coupon');
+    const User = require('../models/User');
+
+    let coupon = await Coupon.findOne({ code: cleanCode });
+
+    // Seed default starter coupons if none exist in DB yet
+    if (!coupon && ['SAVE10', 'FLAT50', 'NEWUSER', 'WELCOME20'].includes(cleanCode)) {
+      const defaults = {
+        'SAVE10': { code: 'SAVE10', description: '10% off on orders above ₹200', discountType: 'percentage', discountValue: 10, minOrderValue: 200, maxDiscountCap: 100, validTo: new Date(Date.now() + 365*24*3600*1000) },
+        'FLAT50': { code: 'FLAT50', description: '₹50 flat off on orders above ₹300', discountType: 'flat', discountValue: 50, minOrderValue: 300, maxDiscountCap: 50, validTo: new Date(Date.now() + 365*24*3600*1000) },
+        'NEWUSER': { code: 'NEWUSER', description: '15% off on your first order', discountType: 'percentage', discountValue: 15, minOrderValue: 100, maxDiscountCap: 150, firstOrderOnly: true, validTo: new Date(Date.now() + 365*24*3600*1000) },
+        'WELCOME20': { code: 'WELCOME20', description: '20% off on orders above ₹500', discountType: 'percentage', discountValue: 20, minOrderValue: 500, maxDiscountCap: 200, validTo: new Date(Date.now() + 365*24*3600*1000) }
+      };
+      try {
+        coupon = await Coupon.create(defaults[cleanCode]);
+      } catch (err) {
+        coupon = await Coupon.findOne({ code: cleanCode });
+      }
+    }
+
     if (!coupon) {
       return { 
         valid: false, 
@@ -330,8 +321,28 @@ const CouponUtils = {
       };
     }
 
+    // Active switch check
+    if (coupon.isActive === false) {
+      return {
+        valid: false,
+        message: 'This coupon is currently inactive',
+        code: 'COUPON_INACTIVE'
+      };
+    }
+
+    const now = new Date();
+
+    // Check valid from
+    if (coupon.validFrom && now < new Date(coupon.validFrom)) {
+      return {
+        valid: false,
+        message: 'This coupon is not active yet',
+        code: 'COUPON_NOT_YET_ACTIVE'
+      };
+    }
+
     // Check validity date
-    if (new Date() > new Date(coupon.validUntil)) {
+    if (coupon.validTo && now > new Date(coupon.validTo)) {
       return { 
         valid: false, 
         message: 'Coupon has expired',
@@ -339,33 +350,101 @@ const CouponUtils = {
       };
     }
 
+    // Check total usage limit
+    if (coupon.totalUsageLimit && coupon.usedCount >= coupon.totalUsageLimit) {
+      return {
+        valid: false,
+        message: 'This coupon has reached its total usage limit',
+        code: 'USAGE_LIMIT_REACHED'
+      };
+    }
+
+    // Check user-specific rules
+    if (userId) {
+      // Per-user limit check
+      const userRedemptions = (coupon.redemptions || []).filter(
+        (r) => r.user && String(r.user) === String(userId)
+      );
+      const perUserLimit = coupon.perUserLimit || 1;
+      if (userRedemptions.length >= perUserLimit) {
+        return {
+          valid: false,
+          message: perUserLimit === 1 ? 'You have already used this coupon' : `You have reached the maximum limit of ${perUserLimit} uses for this coupon`,
+          code: 'ALREADY_USED'
+        };
+      }
+
+      // First order only check
+      if (coupon.firstOrderOnly) {
+        const userDoc = await User.findById(userId).select('orders');
+        if (userDoc && (userDoc.orders || 0) > 0) {
+          return {
+            valid: false,
+            message: 'This coupon is valid only for your first order',
+            code: 'FIRST_ORDER_ONLY'
+          };
+        }
+      }
+    }
+
     // Check minimum order amount
-    if (subtotal < coupon.minOrder) {
+    const minOrder = coupon.minOrderValue || 0;
+    if (subtotal < minOrder) {
       return { 
         valid: false, 
-        message: `Minimum order amount of ₹${coupon.minOrder} required`,
+        message: `Minimum order amount of ₹${minOrder} required`,
         code: 'MIN_ORDER_NOT_MET'
       };
     }
 
     // Calculate discount
-    let discount = coupon.type === 'percentage' 
-      ? Math.round(subtotal * coupon.discount / 100)
-      : coupon.discount;
+    const isPercentage = coupon.discountType === 'percentage';
+    let discount = isPercentage
+      ? Math.round((subtotal * coupon.discountValue) / 100)
+      : coupon.discountValue;
 
     // Apply maximum discount limit
-    if (coupon.maxDiscount) {
-      discount = Math.min(discount, coupon.maxDiscount);
+    if (coupon.maxDiscountCap && isPercentage) {
+      discount = Math.min(discount, coupon.maxDiscountCap);
     }
+
+    // Never exceed the subtotal
+    discount = Math.max(0, Math.min(discount, subtotal));
 
     return { 
       valid: true, 
       discount,
-      type: coupon.type,
-      percentage: coupon.type === 'percentage' ? coupon.discount : null,
-      code: code.toUpperCase(),
-      description: `${coupon.type === 'percentage' ? coupon.discount + '%' : '₹' + coupon.discount} off`
+      type: coupon.discountType,
+      discountValue: coupon.discountValue,
+      percentage: isPercentage ? coupon.discountValue : null,
+      code: cleanCode,
+      couponId: coupon._id,
+      description: coupon.description || `${isPercentage ? coupon.discountValue + '%' : '₹' + coupon.discountValue} off`
     };
+  },
+
+  async recordRedemption(code, userId, orderId, discountAmount) {
+    if (!code || !userId) return;
+    try {
+      const cleanCode = code.trim().toUpperCase();
+      const Coupon = require('../models/Coupon');
+      await Coupon.updateOne(
+        { code: cleanCode },
+        {
+          $inc: { usedCount: 1 },
+          $push: {
+            redemptions: {
+              user: userId,
+              orderId: orderId || null,
+              discountAmount: Number(discountAmount) || 0,
+              redeemedAt: new Date()
+            }
+          }
+        }
+      );
+    } catch (err) {
+      console.error('Failed to record coupon redemption:', err.message);
+    }
   }
 };
 

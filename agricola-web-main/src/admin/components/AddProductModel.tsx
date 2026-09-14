@@ -46,6 +46,7 @@ const emptyForm = () => ({
   sellingPrice: '',
   stock: '',
   featured: false,
+  isOrganic: true,
   variants: emptyVariants(),
   shortDescription: '',
   about: '',
@@ -61,6 +62,8 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
   );
   const [warehouses, setWarehouses] = useState<AdminWarehouse[]>([]);
   const [whStockMap, setWhStockMap] = useState<Record<string, string>>({});
+  const [variantStocksMap, setVariantStocksMap] = useState<Record<string, string>>({});
+  const [variantPricesMap, setVariantPricesMap] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -94,6 +97,19 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
       });
 
     if (initial) {
+      const vStockMap: Record<string, string> = {};
+      const vPriceMap: Record<string, string> = {};
+      if (initial.variantStocks && initial.variantStocks.length > 0) {
+        initial.variantStocks.forEach((vs) => {
+          vStockMap[vs.size] = String(vs.stock ?? 0);
+          if (vs.price !== undefined && vs.price !== null) {
+            vPriceMap[vs.size] = String(vs.price);
+          }
+        });
+      }
+      setVariantStocksMap(vStockMap);
+      setVariantPricesMap(vPriceMap);
+
       setFormData({
         name: initial.name,
         category: initial.category ?? '',
@@ -101,8 +117,13 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
         sellingPrice: String(initial.sellingPrice),
         stock: String(initial.stock),
         featured: !!initial.featured,
+        isOrganic: initial.isOrganic !== false,
         variants: Object.fromEntries(
-          VARIANT_OPTIONS.map((v) => [v.key, initial.sizes.includes(v.key)])
+          VARIANT_OPTIONS.map((v) => [
+            v.key,
+            (initial.variantStocks && initial.variantStocks.some(vs => vs.size === v.key)) ||
+            (initial.sizes && initial.sizes.includes(v.key))
+          ])
         ),
         shortDescription: initial.shortDescription || '',
         about: initial.about || '',
@@ -118,6 +139,8 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
       setFormData(emptyForm());
       setImages(Array(IMAGE_SLOTS).fill(null));
       setWhStockMap({});
+      setVariantStocksMap({});
+      setVariantPricesMap({});
     }
     setError('');
 
@@ -130,14 +153,28 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
     setFormData(emptyForm());
     setImages(Array(IMAGE_SLOTS).fill(null));
     setWhStockMap({});
+    setVariantStocksMap({});
+    setVariantPricesMap({});
     setError('');
   };
 
   const setImageAt = (i: number, img: ProductImage | null) =>
     setImages((prev) => prev.map((cur, idx) => (idx === i ? img : cur)));
 
+  const handleCleanNumberInput = (field: "originalPrice" | "sellingPrice" | "stock", val: string) => {
+    let cleaned = val.replace(/[^0-9]/g, "");
+    if (/^0[0-9]+/.test(cleaned)) {
+      cleaned = cleaned.replace(/^0+/, "");
+    }
+    setFormData((prev) => ({ ...prev, [field]: cleaned }));
+  };
+
   const handleWhStockChange = (whId: string, val: string) => {
-    const nextMap = { ...whStockMap, [whId]: val };
+    let cleaned = val.replace(/[^0-9]/g, "");
+    if (/^0[0-9]+/.test(cleaned)) {
+      cleaned = cleaned.replace(/^0+/, "");
+    }
+    const nextMap = { ...whStockMap, [whId]: cleaned };
     setWhStockMap(nextMap);
     // Auto-calculate aggregate storefront stock from warehouse inputs
     const total = Object.values(nextMap).reduce((sum, curr) => sum + (parseInt(curr, 10) || 0), 0);
@@ -160,7 +197,15 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
         sellingPrice: Number(formData.sellingPrice),
         stock: formData.stock ? Number(formData.stock) : undefined,
         featured: formData.featured,
+        isOrganic: formData.isOrganic,
         variants: formData.variants,
+        variantStocks: VARIANT_OPTIONS
+          .filter((v) => !!formData.variants[v.key])
+          .map((v) => ({
+            size: v.key,
+            stock: Math.max(0, parseInt(variantStocksMap[v.key] || '0', 10) || 0),
+            price: variantPricesMap[v.key] ? Number(variantPricesMap[v.key]) : undefined,
+          })),
         shortDescription: formData.shortDescription,
         about: formData.about,
         usageInstructions: formData.usageInstructions,
@@ -187,13 +232,44 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
   };
 
   const handleVariantChange = (variant: string) => {
-    setFormData({
-      ...formData,
-      variants: {
-        ...formData.variants,
-        [variant]: !formData.variants[variant],
-      },
-    });
+    const willBeChecked = !formData.variants[variant];
+    const nextVariants = {
+      ...formData.variants,
+      [variant]: willBeChecked,
+    };
+    setFormData((prev) => ({
+      ...prev,
+      variants: nextVariants,
+    }));
+
+    if (willBeChecked && !variantStocksMap[variant]) {
+      setVariantStocksMap((prev) => ({ ...prev, [variant]: '0' }));
+    }
+  };
+
+  const handleVariantStockChange = (variant: string, val: string) => {
+    let cleaned = val.replace(/[^0-9]/g, "");
+    if (/^0[0-9]+/.test(cleaned)) {
+      cleaned = cleaned.replace(/^0+/, "");
+    }
+    const nextMap = { ...variantStocksMap, [variant]: cleaned };
+    setVariantStocksMap(nextMap);
+
+    // Auto-calculate aggregate storefront stock from active variant stocks
+    const activeKeys = VARIANT_OPTIONS.filter((v) => v.key === variant || !!formData.variants[v.key]);
+    const total = activeKeys.reduce((sum, v) => {
+      const stockVal = v.key === variant ? cleaned : nextMap[v.key] || '0';
+      return sum + (parseInt(stockVal, 10) || 0);
+    }, 0);
+    setFormData((prev) => ({ ...prev, stock: String(total) }));
+  };
+
+  const handleVariantPriceChange = (variant: string, val: string) => {
+    let cleaned = val.replace(/[^0-9]/g, "");
+    if (/^0[0-9]+/.test(cleaned)) {
+      cleaned = cleaned.replace(/^0+/, "");
+    }
+    setVariantPricesMap((prev) => ({ ...prev, [variant]: cleaned }));
   };
 
   if (!isOpen) return null;
@@ -280,8 +356,17 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
                   </label>
                   <input
                     type="number"
+                    min="0"
+                    placeholder="0"
                     value={formData.originalPrice}
-                    onChange={(e) => setFormData({ ...formData, originalPrice: e.target.value })}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    onFocus={(e) => {
+                      if (e.target.value === "0") e.target.select();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "-" || e.key === "e" || e.key === "E") e.preventDefault();
+                    }}
+                    onChange={(e) => handleCleanNumberInput("originalPrice", e.target.value)}
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200"
                   />
                 </div>
@@ -291,8 +376,17 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
                   </label>
                   <input
                     type="number"
+                    min="0"
+                    placeholder="0"
                     value={formData.sellingPrice}
-                    onChange={(e) => setFormData({ ...formData, sellingPrice: e.target.value })}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    onFocus={(e) => {
+                      if (e.target.value === "0") e.target.select();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "-" || e.key === "e" || e.key === "E") e.preventDefault();
+                    }}
+                    onChange={(e) => handleCleanNumberInput("sellingPrice", e.target.value)}
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200"
                   />
                 </div>
@@ -302,10 +396,18 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
                   </label>
                   <input
                     type="number"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200 font-semibold bg-gray-50"
+                    min="0"
                     placeholder="0"
+                    value={formData.stock}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    onFocus={(e) => {
+                      if (e.target.value === "0") e.target.select();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "-" || e.key === "e" || e.key === "E") e.preventDefault();
+                    }}
+                    onChange={(e) => handleCleanNumberInput("stock", e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200 font-semibold bg-gray-50"
                   />
                 </div>
               </div>
@@ -329,6 +431,13 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
                               type="number"
                               min="0"
                               value={whStockMap[wh.id] ?? '0'}
+                              onWheel={(e) => e.currentTarget.blur()}
+                              onFocus={(e) => {
+                                if (e.target.value === "0") e.target.select();
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "-" || e.key === "e" || e.key === "E") e.preventDefault();
+                              }}
                               onChange={(e) => handleWhStockChange(wh.id, e.target.value)}
                               className="w-full px-2 py-1 border border-gray-200 rounded text-right text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-green-500"
                             />
@@ -342,21 +451,85 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Available Variants
-                </label>
-                <div className="flex flex-wrap gap-x-4 gap-y-2">
-                  {VARIANT_OPTIONS.map((v) => (
-                    <label key={v.key} className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={!!formData.variants[v.key]}
-                        onChange={() => handleVariantChange(v.key)}
-                        className="w-4 h-4 rounded border-gray-300"
-                      />
-                      <span className="text-sm text-gray-700">{v.label}</span>
-                    </label>
-                  ))}
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-semibold text-gray-800">
+                    Select Available Variants &amp; Stock Levels
+                  </label>
+                  <span className="text-xs text-gray-500">Specify inventory per pack size</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50/80 p-3.5 rounded-xl border border-gray-200/80">
+                  {VARIANT_OPTIONS.map((v) => {
+                    const isChecked = !!formData.variants[v.key];
+                    return (
+                      <div
+                        key={v.key}
+                        className={`flex flex-col p-3 rounded-lg border transition-all ${
+                          isChecked
+                            ? "bg-white border-green-400 shadow-2xs"
+                            : "bg-white/60 border-gray-200 opacity-75 hover:opacity-100"
+                        }`}
+                      >
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleVariantChange(v.key)}
+                              className="w-4 h-4 rounded text-green-600 focus:ring-green-500 border-gray-300 cursor-pointer"
+                            />
+                            <span className="text-sm font-bold text-gray-800">{v.label}</span>
+                          </div>
+                          {isChecked && (
+                            <span className="text-[10px] font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
+                              Active
+                            </span>
+                          )}
+                        </label>
+
+                        {isChecked && (
+                          <div className="mt-2.5 pt-2 border-t border-gray-100 grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
+                                Stock (units)
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder="0"
+                                value={variantStocksMap[v.key] ?? '0'}
+                                onWheel={(e) => e.currentTarget.blur()}
+                                onFocus={(e) => {
+                                  if (e.target.value === "0") e.target.select();
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "-" || e.key === "e" || e.key === "E") e.preventDefault();
+                                }}
+                                onChange={(e) => handleVariantStockChange(v.key, e.target.value)}
+                                className="w-full px-2 py-1 text-xs border border-gray-200 rounded font-bold text-right text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-medium text-gray-600 mb-0.5">
+                                Price (₹ opt.)
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder="Default"
+                                value={variantPricesMap[v.key] ?? ''}
+                                onWheel={(e) => e.currentTarget.blur()}
+                                onKeyDown={(e) => {
+                                  if (e.key === "-" || e.key === "e" || e.key === "E") e.preventDefault();
+                                }}
+                                onChange={(e) => handleVariantPriceChange(v.key, e.target.value)}
+                                className="w-full px-2 py-1 text-xs border border-gray-200 rounded text-right text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -372,6 +545,23 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
                     Mark as Best Seller{' '}
                     <span className="font-normal text-gray-400">
                       (shown in “Our Best Sellers” on the homepage)
+                    </span>
+                  </span>
+                </label>
+              </div>
+
+              <div>
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.isOrganic}
+                    onChange={(e) => setFormData({ ...formData, isOrganic: e.target.checked })}
+                    className="w-4 h-4 rounded border-gray-300"
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Organic Product{' '}
+                    <span className="font-normal text-gray-400">
+                      (shows “🌿 Organic” badge; uncheck for non-organic items)
                     </span>
                   </span>
                 </label>

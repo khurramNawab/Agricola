@@ -84,6 +84,21 @@ const productSchema = new mongoose.Schema({
   tags: [String],
   // Storefront-facing content fields (consumed by ProductDetail.tsx)
   sizes: [String], // e.g. ["250g", "500g", "1kg"]
+  variantStocks: [{
+    size: {
+      type: String,
+      required: true
+    },
+    stock: {
+      type: Number,
+      default: 0,
+      min: [0, 'Variant stock cannot be negative']
+    },
+    price: {
+      type: Number,
+      min: [0, 'Variant price cannot be negative']
+    }
+  }],
   about: {
     type: String,
     maxlength: [5000, 'About cannot exceed 5000 characters']
@@ -146,6 +161,14 @@ const productSchema = new mongoose.Schema({
       enum: ['days', 'months', 'years'],
       default: 'months'
     }
+  },
+  // Admin-controlled organic status — shown as a badge on the storefront.
+  // Default: true (organic-focused store). Existing products without this field
+  // will serialize as Organic (p.isOrganic !== false = true). A backfill migration
+  // is optional; see audit report for the one-liner.
+  isOrganic: {
+    type: Boolean,
+    default: true
   }
 }, {
   timestamps: true

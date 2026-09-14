@@ -35,7 +35,17 @@ const buildCartResponse = async (cart) => {
       mutated = true;
       continue;
     }
-    const price = product.price;
+    let price = product.price;
+    let isItemInStock = (product.stock || 0) >= item.qty && product.status === 'active';
+
+    if (item.weight && product.variantStocks && product.variantStocks.length > 0) {
+      const v = product.variantStocks.find((vs) => String(vs.size).toLowerCase() === String(item.weight).toLowerCase());
+      if (v) {
+        if (v.price && v.price > 0) price = v.price;
+        isItemInStock = (v.stock || 0) >= item.qty && product.status === 'active';
+      }
+    }
+
     const lineTotal = price * item.qty;
     subtotal += lineTotal;
 
@@ -47,7 +57,7 @@ const buildCartResponse = async (cart) => {
       price,
       qty: item.qty,
       image: primaryImage(product.images),
-      inStock: (product.stock || 0) >= item.qty && product.status === 'active',
+      inStock: isItemInStock,
       lineTotal
     });
   }

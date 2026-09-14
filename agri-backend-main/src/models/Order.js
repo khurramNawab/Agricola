@@ -207,9 +207,20 @@ const orderSchema = new mongoose.Schema({
     discount: Number,
     type: {
       type: String,
-      enum: ['percentage', 'fixed']
+      enum: ['percentage', 'fixed', 'flat']
     }
   },
+  appliedCoupons: [
+    {
+      code: String,
+      discount: Number,
+      type: {
+        type: String,
+        enum: ['percentage', 'fixed', 'flat']
+      },
+      discountValue: Number
+    }
+  ],
   warehouse: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Warehouse',

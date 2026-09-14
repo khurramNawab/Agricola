@@ -1,3 +1,11 @@
+const dns = require('dns');
+try {
+  dns.setDefaultResultOrder('ipv4first');
+  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (e) {
+  // ignore if restricted
+}
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -5,7 +13,20 @@ const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 require('dotenv').config();
+
+// Startup validation: fail fast in production if critical variables are missing
+const requiredEnv = ['JWT_SECRET', 'MONGODB_URI'];
+const missingEnv = requiredEnv.filter((key) => !process.env[key]);
+if (missingEnv.length > 0) {
+  if (process.env.NODE_ENV === 'production') {
+    console.error(`FATAL: Missing required environment variables: ${missingEnv.join(', ')}`);
+    process.exit(1);
+  } else {
+    console.warn(`[WARN] Missing environment variables in dev: ${missingEnv.join(', ')}`);
+  }
+}
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -24,6 +45,8 @@ const supportRoutes = require('./routes/support');
 const searchRoutes = require('./routes/search');
 const addressRoutes = require('./routes/addresses');
 const checkoutRoutes = require('./routes/checkout');
+const campaignRoutes = require('./routes/campaigns');
+const subscriberRoutes = require('./routes/subscribers');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -38,14 +61,15 @@ const app = express();
 app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS) || 1);
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(compression());
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // CORS configuration.
 // Comma-separated allowlist via CORS_ORIGIN (falls back to FRONTEND_URL, then
 // localhost). Lets the deployed site and local dev hit the API at the same time.
 const allowedOrigins = (
-  process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:5173'
+  process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174'
 )
   .split(',')
   .map((o) => o.trim())
@@ -54,8 +78,13 @@ const allowedOrigins = (
 app.use(cors({
   origin: (origin, callback) => {
     // No Origin header = non-browser client (curl, server-to-server, health checks).
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(null, false); // deny without throwing (browser blocks the read)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // Allow any localhost / 127.0.0.1 port for local development
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, false);
   },
   credentials: true
 }));
@@ -122,8 +151,11 @@ app.use('/api/v1/shipping', shippingRoutes);
 app.use('/api/v1/admin/auth', authLimiter, adminAuthRoutes); // before /admin so login bypasses the admin guard
 app.use('/api/v1/admin/upload', uploadRoutes); // before /admin so the route isn't shadowed by the admin guard chain
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/blogs', blogRoutes);
 app.use('/api/v1/blog', blogRoutes);
 app.use('/api/v1/support', supportRoutes);
+app.use('/api/v1/campaigns', campaignRoutes);
+app.use('/api/v1/subscribers', subscriberRoutes);
 
 // Error handling middleware
 app.use(notFound);
@@ -132,8 +164,22 @@ app.use(errorHandler);
 // Database connection
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
+    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      family: 4,
+      serverSelectionTimeoutMS: 15000,
+      socketTimeoutMS: 45000,
+    });
     console.log(`MongoDB Connected: ${conn.connection.host}`);
+
+    mongoose.connection.on('error', (err) => {
+      console.error('MongoDB runtime error:', err.message);
+    });
+    mongoose.connection.on('disconnected', () => {
+      console.warn('MongoDB disconnected. Reconnecting automatically...');
+    });
+    mongoose.connection.on('reconnected', () => {
+      console.log('MongoDB reconnected successfully.');
+    });
   } catch (error) {
     console.error('Database connection failed:', error.message);
     process.exit(1);
@@ -145,11 +191,21 @@ const PORT = process.env.PORT || 5000;
 
 if (process.env.NODE_ENV !== 'test') {
   connectDB().then(() => {
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
       console.log(`📡 API Base URL: http://localhost:${PORT}/api/v1`);
     });
+
+    const shutdown = () => {
+      server.close(() => {
+        mongoose.connection.close(false, () => {
+          process.exit(0);
+        });
+      });
+    };
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
   });
 }
 

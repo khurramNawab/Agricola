@@ -1,5 +1,4 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { X, Building2, AlertTriangle, CheckCircle, PackageCheck, Truck } from "lucide-react";
 import {
   updateOrderStatus,
   downloadInvoice,
@@ -30,24 +29,27 @@ const fmtDateTime = (iso: string | null) => {
 };
 
 const statusBadge = (label: string) => {
-  switch (label) {
-    case "Delivered":
-      return "bg-green-100 text-green-700";
-    case "Shipped":
-      return "bg-blue-100 text-blue-700";
-    case "Cancelled":
-    case "Refunded":
-      return "bg-red-100 text-red-600";
+  switch (label.toLowerCase()) {
+    case "delivered":
+      return "bg-[#c9ecc4] text-[#486800]";
+    case "shipped":
+    case "out_for_delivery":
+      return "bg-blue-100 text-blue-800";
+    case "cancelled":
+    case "refunded":
+      return "bg-red-100 text-red-800";
+    case "processing":
+      return "bg-amber-100 text-amber-800";
     default:
-      return "bg-yellow-100 text-yellow-700";
+      return "bg-yellow-100 text-yellow-800";
   }
 };
 
 function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex justify-between gap-4 py-1.5 text-sm">
-      <span className="text-gray-500">{label}</span>
-      <span className="text-right font-medium text-gray-900 break-all">{value}</span>
+    <div className="flex justify-between gap-4 py-1.5 text-xs">
+      <span className="text-gray-500 font-medium">{label}</span>
+      <span className="text-right font-bold text-[#1b1c1a] break-all">{value}</span>
     </div>
   );
 }
@@ -92,7 +94,10 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
         }
       })
       .catch((err) => {
-        if (mounted) setWhError(err instanceof Error ? err.message : "Failed to load warehouse availability.");
+        if (mounted) {
+          console.error("Failed to load warehouse availability:", err);
+          setWhError(err instanceof Error ? err.message : "Failed to load warehouse availability.");
+        }
       });
     return () => {
       mounted = false;
@@ -108,10 +113,11 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
       const updated = await assignOrderWarehouse(order.id, selectedWarehouseId, selectedProvider);
       onStatusUpdated(updated);
       const providerLabel = selectedProvider === "shiprocket" ? "Shiprocket" : "Ekart";
-      setWhSuccess(`Warehouse assigned via ${providerLabel} — shipment booking initiated!`);
+      setWhSuccess(`Warehouse allocated via ${providerLabel} — shipment booking initiated!`);
       const fresh = await getOrderWarehouseAvailability(order.id);
       setAvailability(fresh);
     } catch (err) {
+      console.error("Failed to assign warehouse:", err);
       setWhError(err instanceof Error ? err.message : "Failed to assign warehouse.");
     } finally {
       setAssigningWh(false);
@@ -124,6 +130,7 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
     try {
       await fn();
     } catch (err) {
+      console.error("Order action download error:", err);
       setError(err instanceof Error ? err.message : "Download failed.");
     } finally {
       setInvoiceBusy(false);
@@ -132,7 +139,9 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
 
   const addr = order.shippingAddress;
   const sh = order.shipping;
-  const hasShipping = sh.trackingNumber || sh.carrier || sh.method || sh.estimatedDelivery;
+  const hasShipping = Boolean(
+    sh && (sh.trackingNumber || sh.carrier || sh.courierName || sh.method || sh.estimatedDelivery || sh.providerShipmentId || sh.provider)
+  );
 
   const handleUpdate = async () => {
     setError("");
@@ -144,380 +153,393 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
       setSaved(true);
       onStatusUpdated(updated);
     } catch (err) {
+      console.error("Order action status update error:", err);
       setError(err instanceof Error ? err.message : "Failed to update status.");
     } finally {
       setSaving(false);
     }
   };
 
-  const assignedWh = availability?.assignedWarehouseId
-    ? availability.warehouses.find((w) => w.id === availability.assignedWarehouseId)
-    : null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">Order Details</h3>
-            <p className="text-sm text-gray-400">{order.orderId}</p>
-            {assignedWh && (
-              <p className="mt-1 inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-200">
-                Fulfilling from: {assignedWh.code} — {assignedWh.city}, {assignedWh.state}
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusBadge(currentLabel)}`}>
-              {currentLabel}
-            </span>
-            <button onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
-              <X size={20} />
-            </button>
-          </div>
-        </div>
-
-        {/* Status update */}
-        <div className="rounded-xl border border-gray-100 p-4">
-          <p className="mb-2 text-sm font-semibold text-gray-700">Update Status</p>
-          <div className="flex items-center gap-3">
-            <select
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value as OrderStatusRaw);
-                setSaved(false);
-              }}
-              className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              {ORDER_STATUS_VALUES.map((s) => (
-                <option key={s} value={s}>
-                  {cap(s)}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={handleUpdate}
-              disabled={saving}
-              className="rounded-lg bg-[#84b817] px-4 py-2 text-sm font-medium text-white hover:bg-[#6d9913] disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Update"}
-            </button>
-          </div>
-          {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
-          {saved && <p className="mt-2 text-xs text-green-600">Status updated.</p>}
-        </div>
-
-        {/* Multi-Warehouse Fulfillment Banner & Selector */}
-        {availability && (
-          <div className="mt-5 rounded-xl border border-gray-200 bg-gray-50/50 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Building2 size={18} className="text-gray-700" />
-                <h4 className="text-sm font-semibold text-gray-800">Fulfillment Warehouse</h4>
-              </div>
-              {availability.awaitingWarehouseAssignment ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-                  <AlertTriangle size={12} />
-                  Awaiting Assignment
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                  <CheckCircle size={12} />
-                  Assigned
-                </span>
-              )}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs font-sans">
+      <div className="relative flex flex-col w-full max-w-4xl max-h-[92vh] rounded-3xl bg-white shadow-2xl overflow-hidden border border-gray-100">
+        {/* Top Header */}
+        <div className="p-6 bg-[#f5f3f0] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-200">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xl font-black text-[#1e3a1f]">
+                Order #{order.orderId}
+              </span>
+              <span className={`inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${statusBadge(currentLabel)}`}>
+                {currentLabel}
+              </span>
             </div>
+            <p className="text-xs text-[#434936] flex items-center gap-1">
+              <span className="material-symbols-outlined text-sm text-[#486800]">person</span>
+              <span>Customer: <strong className="text-[#1b1c1a]">{order.customer?.name || order.email || "Shopper"}</strong></span>
+              {addr && <span>• {addr.city}, {addr.state} - PIN {addr.pincode}</span>}
+            </p>
+          </div>
 
-            {availability.awaitingWarehouseAssignment && (
-              <p className="mb-3 text-xs text-amber-700 bg-amber-50 p-2.5 rounded-lg border border-amber-200">
-                Shipment booking is paused until a fulfillment warehouse is assigned to this order.
-              </p>
-            )}
+          <button
+            onClick={onClose}
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-white hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition-colors shadow-2xs self-end sm:self-center cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-lg">close</span>
+          </button>
+        </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Select Dispatch Warehouse
-                </label>
-                <select
-                  id="dispatch-warehouse-select"
-                  value={selectedWarehouseId}
-                  onChange={(e) => {
-                    const newWhId = e.target.value;
-                    setSelectedWarehouseId(newWhId);
-                    setWhError("");
-                    setWhSuccess("");
-                    const chosen = availability.warehouses.find((w) => w.id === newWhId);
-                    if (chosen && !chosen.shiprocketPickupNickname) {
-                      setSelectedProvider("ekart");
-                    }
-                  }}
-                  className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-800 focus:border-[#84b817] focus:outline-none"
-                >
-                  <option value="">Select Warehouse…</option>
-                  {availability.warehouses.map((wh) => {
-                    /* STRICT Labeling format: `code — city, state` */
-                    const whLabel = `${wh.code} — ${wh.city || ""}, ${wh.state || ""}`.trim();
-                    const stockTag = wh.canFulfill ? "[Fully Stocked]" : "[Insufficient Stock]";
-                    return (
-                      <option key={wh.id} value={wh.id}>
-                        {whLabel} {stockTag}
-                      </option>
-                    );
-                  })}
-                </select>
+        {/* Pinned PDF / Document Action Bar (Stitch Design) */}
+        <div className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-2 px-6 py-2.5 bg-[#efeeeb] shadow-xs border-b border-gray-200 text-xs">
+          <div className="flex items-center gap-1 text-[#1e3a1f] font-bold">
+            <span className="material-symbols-outlined text-base text-[#486800]">print</span>
+            <span>Fulfillment Documents (Ready to Print):</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={invoiceBusy}
+              onClick={() => runDownload(() => downloadInvoice(order.id, order.orderId))}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-[#c9ecc4] text-[#1e3a1f] font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-sm text-[#486800]">description</span>
+              <span>Invoice A4 (GST)</span>
+            </button>
+            <button
+              type="button"
+              disabled={invoiceBusy}
+              onClick={() => runDownload(() => downloadInvoice(order.id, order.orderId, "4x6"))}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-[#c9ecc4] text-[#1e3a1f] font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-sm text-[#486800]">label</span>
+              <span>Invoice 4×6 Slip</span>
+            </button>
+            <button
+              type="button"
+              disabled={invoiceBusy}
+              onClick={() => runDownload(() => downloadLabel(order.id, order.orderId))}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-[#c9ecc4] text-[#1e3a1f] font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-sm text-[#486800]">qr_code_2</span>
+              <span>AWB Courier Label</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Global Error Alert Banner */}
+        {error && (
+          <div className="mx-6 mt-4 p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-xs font-semibold flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-base text-red-600">error</span>
+              <span>{error}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setError("")}
+              className="text-red-500 hover:text-red-800 p-1"
+            >
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+          </div>
+        )}
+
+        {/* Scrollable Body */}
+        <div className="overflow-y-auto p-6 flex flex-col gap-6">
+          {/* Warehouse Allocation Section */}
+          {availability && (
+            <div className="bg-[#f5f3f0] rounded-3xl p-5 border border-gray-200/80 flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[#486800] text-xl">warehouse</span>
+                  <h4 className="text-sm font-black text-[#1e3a1f]">
+                    Warehouse Allocation &amp; Stock Sufficiency
+                  </h4>
+                </div>
+                {availability.awaitingWarehouseAssignment ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-900 px-3 py-0.5 text-[10px] font-extrabold uppercase tracking-wider">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Awaiting Assignment
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[#c9ecc4] text-[#486800] px-3 py-0.5 text-[10px] font-extrabold uppercase tracking-wider">
+                    <span className="material-symbols-outlined text-xs">check</span>
+                    Assigned
+                  </span>
+                )}
               </div>
 
-              {selectedWarehouseId && (
-                (() => {
-                  const selWh = availability.warehouses.find((w) => w.id === selectedWarehouseId);
-                  if (!selWh) return null;
+              {/* Warehouse Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {availability.warehouses.map((wh) => {
+                  const isSelected = selectedWarehouseId === wh.id;
+                  const label = `${wh.code} — ${wh.city || ""}, ${wh.state || ""}`.trim();
+
                   return (
-                    <div className="rounded-lg bg-white p-3 border border-gray-100 space-y-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-gray-800">
-                          {selWh.code} — {selWh.city}, {selWh.state}
-                        </span>
-                        <span
-                          className={`font-semibold px-2 py-0.5 rounded ${
-                            selWh.canFulfill
-                              ? "bg-green-100 text-green-700"
-                              : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          {selWh.canFulfill ? "Fulfillable" : "Insufficient Stock"}
+                    <label
+                      key={wh.id}
+                      className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                        isSelected
+                          ? "border-[#486800] bg-white shadow-xs"
+                          : "border-gray-200 bg-white/70 hover:border-gray-300"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="warehouseSelect"
+                            checked={isSelected}
+                            onChange={() => {
+                              setSelectedWarehouseId(wh.id);
+                              setWhError("");
+                              setWhSuccess("");
+                              if (!wh.shiprocketPickupNickname) {
+                                setSelectedProvider("ekart");
+                              }
+                            }}
+                            className="accent-[#486800] w-4 h-4"
+                          />
+                          <span className="font-bold text-xs text-[#1e3a1f]">{label}</span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                          wh.canFulfill ? "bg-[#c9ecc4] text-[#486800]" : "bg-red-100 text-red-700"
+                        }`}>
+                          {wh.canFulfill ? "Fulfillable" : "Low Stock"}
                         </span>
                       </div>
 
-                      {selWh.itemsAvailability && selWh.itemsAvailability.length > 0 && (
-                        <div className="space-y-1 pt-1 border-t border-gray-50 text-xs">
-                          {selWh.itemsAvailability.map((it, idx) => (
-                            <div key={idx} className="flex justify-between text-gray-600">
-                              <span>{it.name} (Req: {it.required})</span>
-                              <span className={it.sufficient ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                      {wh.itemsAvailability && wh.itemsAvailability.length > 0 && (
+                        <div className="text-[11px] text-[#434936] space-y-0.5 pt-1 border-t border-gray-100">
+                          {wh.itemsAvailability.map((it, idx) => (
+                            <div key={idx} className="flex justify-between">
+                              <span className="truncate max-w-[150px]">{it.name} (Req: {it.required})</span>
+                              <span className={it.sufficient ? "text-[#486800] font-bold" : "text-red-500 font-bold"}>
                                 {it.available} in stock {it.sufficient ? "✓" : "✗"}
                               </span>
                             </div>
                           ))}
                         </div>
                       )}
-                    </div>
+                    </label>
                   );
-                })()
-              )}
+                })}
+              </div>
 
-              {/* Shipping Carrier Selection */}
-              {(() => {
-                const selWh = availability.warehouses.find((w) => w.id === selectedWarehouseId);
-                const hasShiprocket = Boolean(selWh?.shiprocketPickupNickname);
-
-                return (
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-medium text-gray-600">
-                        Shipping Carrier
-                      </label>
-                      {selWh && !hasShiprocket && (
-                        <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-medium">
-                          Ekart Only
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        disabled={!hasShiprocket}
-                        onClick={() => {
-                          setSelectedProvider("shiprocket");
-                          setWhError("");
-                          setWhSuccess("");
-                        }}
-                        className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-semibold transition-all ${
-                          !hasShiprocket
-                            ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60"
-                            : selectedProvider === "shiprocket"
-                            ? "border-[#84b817] bg-[#84b817]/10 text-[#5a7f0f] shadow-sm"
-                            : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50"
-                        }`}
-                        title={!hasShiprocket ? "Not registered in Shiprocket" : undefined}
-                      >
-                        <Truck size={13} />
-                        Shiprocket {!hasShiprocket && <span className="text-[10px] text-gray-400">(N/A)</span>}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedProvider("ekart");
-                          setWhError("");
-                          setWhSuccess("");
-                        }}
-                        className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-semibold transition-all ${
-                          selectedProvider === "ekart"
-                            ? "border-[#84b817] bg-[#84b817]/10 text-[#5a7f0f] shadow-sm"
-                            : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50"
-                        }`}
-                      >
-                        <Truck size={13} />
-                        Ekart {selWh?.ekartPickupAlias ? `(${selWh.ekartPickupAlias})` : ""}
-                      </button>
-                    </div>
-
-                    {selWh && !hasShiprocket && (
-                      <p className="mt-1 text-[11px] text-amber-700">
-                        {selWh.code} is registered only in Ekart (Alias: <strong>{selWh.ekartPickupAlias || "Default"}</strong>).
-                      </p>
-                    )}
+              {/* Carrier Choice & Allocation CTA */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-[#1e3a1f]">Logistics Carrier:</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProvider("shiprocket")}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        selectedProvider === "shiprocket"
+                          ? "bg-[#1e3a1f] text-white"
+                          : "bg-white text-gray-600 border border-gray-200"
+                      }`}
+                    >
+                      Shiprocket
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProvider("ekart")}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        selectedProvider === "ekart"
+                          ? "bg-[#1e3a1f] text-white"
+                          : "bg-white text-gray-600 border border-gray-200"
+                      }`}
+                    >
+                      Ekart Logistics
+                    </button>
                   </div>
-                );
-              })()}
+                </div>
 
-              <button
-                onClick={handleAssignWarehouse}
-                disabled={assigningWh || !selectedWarehouseId}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#84b817] py-2 text-sm font-medium text-white hover:bg-[#6d9913] disabled:opacity-50 transition-colors"
+                <button
+                  type="button"
+                  onClick={handleAssignWarehouse}
+                  disabled={assigningWh || !selectedWarehouseId}
+                  className="px-6 py-2.5 rounded-full bg-[#486800] hover:bg-[#1e3a1f] text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  {assigningWh
+                    ? "Allocating Hub…"
+                    : availability.assignedWarehouseId
+                    ? "Re-allocate Warehouse Hub"
+                    : "Allocate Warehouse & Dispatch"}
+                </button>
+              </div>
+
+              {whError && <p className="text-xs text-red-500 font-bold">{whError}</p>}
+              {whSuccess && <p className="text-xs text-[#486800] font-bold">{whSuccess}</p>}
+            </div>
+          )}
+
+          {/* Status Update Strip */}
+          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-2xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <span className="text-xs font-bold text-[#1e3a1f] block">Update Order Status</span>
+              <span className="text-[11px] text-[#434936]">Triggers customer notification stream</span>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <select
+                value={status}
+                onChange={(e) => {
+                  setStatus(e.target.value as OrderStatusRaw);
+                  setSaved(false);
+                }}
+                className="bg-[#f5f3f0] px-3 py-2 rounded-xl text-xs font-bold text-[#1e3a1f] border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#84b817]"
               >
-                <PackageCheck size={16} />
-                {assigningWh
-                  ? "Assigning Warehouse…"
-                  : availability.assignedWarehouseId
-                  ? "Re-assign Warehouse"
-                  : "Assign Warehouse & Book Shipment"}
+                {ORDER_STATUS_VALUES.map((s) => (
+                  <option key={s} value={s}>
+                    {cap(s)}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleUpdate}
+                disabled={saving}
+                className="px-4 py-2 bg-[#1e3a1f] hover:bg-[#486800] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {saving ? "…" : "Save Status"}
               </button>
-
-              {whError && <p className="text-xs text-red-500">{whError}</p>}
-              {whSuccess && <p className="text-xs text-green-600">{whSuccess}</p>}
             </div>
           </div>
-        )}
+          {saved && <p className="text-xs text-[#486800] font-bold -mt-3">Status updated successfully.</p>}
 
-        <h4 className="mt-5 mb-2 text-sm font-semibold text-gray-700">Customer</h4>
-        <div className="rounded-xl border border-gray-100 p-4">
-          <Row label="Name" value={order.customer?.name ?? "—"} />
-          <Row label="Email" value={order.customer?.email || order.email || "—"} />
-          <Row label="Phone" value={order.customer?.phone || "—"} />
-          <Row label="Payment" value={`${order.paymentMethod} · ${order.paymentStatus}`} />
-          <Row label="Placed" value={fmtDateTime(order.createdAt)} />
+          {/* Items Table */}
+          {order.items.length > 0 && (
+            <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-2xs">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#434936] mb-3">
+                Order Items ({order.items.length})
+              </h4>
+              <div className="divide-y divide-gray-100 text-xs">
+                {order.items.map((it, i) => (
+                  <div key={i} className="py-2.5 flex justify-between items-center">
+                    <div>
+                      <span className="font-bold text-[#1e3a1f]">{it.name}</span>
+                      <span className="text-gray-400 block text-[11px]">
+                        {it.weight ? `Pack: ${it.weight} • ` : ""}Qty: {it.quantity}
+                      </span>
+                    </div>
+                    <span className="font-black text-[#1e3a1f]">{inr(it.subtotal)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Customer, Shipping Logistics & Pricing Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Customer & Address */}
+            <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-2xs text-xs space-y-2">
+              <h4 className="font-bold uppercase tracking-wider text-[#434936] text-[10px]">
+                Customer &amp; Address
+              </h4>
+              <Row label="Name" value={order.customer?.name ?? "—"} />
+              <Row label="Email" value={order.customer?.email || order.email || "—"} />
+              <Row label="Phone" value={order.customer?.phone || "—"} />
+              <Row label="Payment Mode" value={`${order.paymentMethod} · ${order.paymentStatus}`} />
+              <Row label="Order Date" value={fmtDateTime(order.createdAt)} />
+              {addr && (
+                <div className="pt-2 border-t border-gray-100 text-gray-600">
+                  <span className="font-bold text-[#1e3a1f] block mb-0.5">Delivery Address:</span>
+                  {[addr.street, addr.city, addr.state, addr.pincode].filter(Boolean).join(", ")}
+                </div>
+              )}
+            </div>
+
+            {/* Logistics & Courier Tracking (Conditional on hasShipping) */}
+            <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-2xs text-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold uppercase tracking-wider text-[#434936] text-[10px] flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm text-[#486800]">local_shipping</span>
+                  Logistics &amp; Tracking
+                </h4>
+                {hasShipping ? (
+                  <span className="px-2 py-0.5 rounded-full bg-[#c9ecc4] text-[#486800] text-[10px] font-bold">
+                    {sh.courierName || sh.carrier || (sh.provider === "ekart" ? "Ekart" : "Shiprocket")}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
+                    Unbooked
+                  </span>
+                )}
+              </div>
+
+              {hasShipping ? (
+                <>
+                  <Row label="Carrier" value={sh.courierName || sh.carrier || (sh.provider === "ekart" ? "Ekart Logistics" : "Shiprocket")} />
+                  {sh.trackingNumber ? (
+                    <Row
+                      label="AWB Tracking #"
+                      value={
+                        sh.trackingUrl ? (
+                          <a
+                            href={sh.trackingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#486800] underline font-bold hover:text-[#1e3a1f] inline-flex items-center gap-0.5"
+                          >
+                            {sh.trackingNumber}
+                            <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                          </a>
+                        ) : (
+                          <span className="font-mono font-bold">{sh.trackingNumber}</span>
+                        )
+                      }
+                    />
+                  ) : (
+                    <Row label="AWB Tracking #" value="Pending Generation" />
+                  )}
+                  {(sh.providerShipmentId || sh.ekartShipmentId) && (
+                    <Row label="Shipment ID" value={sh.providerShipmentId || sh.ekartShipmentId || "—"} />
+                  )}
+                  {sh.estimatedDelivery && (
+                    <Row label="Est. Delivery" value={fmtDateTime(sh.estimatedDelivery)} />
+                  )}
+                  {sh.shippedAt && (
+                    <Row label="Shipped At" value={fmtDateTime(sh.shippedAt)} />
+                  )}
+                </>
+              ) : (
+                <div className="py-4 text-center text-gray-400 italic text-[11px]">
+                  No courier booked yet. Allocate a warehouse above to generate an AWB.
+                </div>
+              )}
+            </div>
+
+            {/* Pricing Financial Summary */}
+            {order.pricing && (
+              <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-2xs text-xs space-y-1.5">
+                <h4 className="font-bold uppercase tracking-wider text-[#434936] text-[10px]">
+                  Financial Breakdown
+                </h4>
+                <Row label="Items Subtotal" value={inr(order.pricing.subtotal)} />
+                <Row label="Cold-Chain Delivery" value={inr(order.pricing.shipping)} />
+                {order.pricing.tax > 0 && <Row label="GST & Taxes" value={inr(order.pricing.tax)} />}
+                {order.pricing.discount > 0 && (
+                  <Row label="Discount" value={`- ${inr(order.pricing.discount)}`} />
+                )}
+                <div className="pt-2 border-t border-gray-100">
+                  <div className="flex justify-between items-center text-sm font-black text-[#1e3a1f]">
+                    <span>Total Amount</span>
+                    <span>{inr(order.pricing.total)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        {addr && (
-          <>
-            <h4 className="mt-5 mb-2 text-sm font-semibold text-gray-700">Shipping Address</h4>
-            <div className="rounded-xl border border-gray-100 p-4 text-sm text-gray-700">
-              {addr.name && <div className="font-medium text-gray-900">{addr.name}</div>}
-              <div>
-                {[addr.street, addr.city, addr.state, addr.pincode].filter(Boolean).join(", ")}
-              </div>
-              {addr.phone && <div className="text-gray-500">{addr.phone}</div>}
-            </div>
-          </>
-        )}
-
-        {order.items.length > 0 && (
-          <>
-            <h4 className="mt-5 mb-2 text-sm font-semibold text-gray-700">Items</h4>
-            <div className="rounded-xl border border-gray-100 p-4">
-              {order.items.map((it, i) => (
-                <div key={i} className="flex justify-between py-1.5 text-sm">
-                  <span className="text-gray-700">
-                    {it.name}
-                    {it.weight ? ` · ${it.weight}` : ""} × {it.quantity}
-                  </span>
-                  <span className="font-medium text-gray-900">{inr(it.subtotal)}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        {order.pricing && (
-          <div className="mt-4 rounded-xl border border-gray-100 p-4">
-            <Row label="Subtotal" value={inr(order.pricing.subtotal)} />
-            <Row label="Shipping" value={inr(order.pricing.shipping)} />
-            {order.pricing.tax > 0 && <Row label="Tax" value={inr(order.pricing.tax)} />}
-            {order.pricing.discount > 0 && <Row label="Discount" value={`- ${inr(order.pricing.discount)}`} />}
-            <div className="mt-1 border-t border-gray-100 pt-2">
-              <Row label="Total" value={<span className="text-base">{inr(order.pricing.total)}</span>} />
-            </div>
-          </div>
-        )}
-
-        {hasShipping && (
-          <>
-            <h4 className="mt-5 mb-2 text-sm font-semibold text-gray-700">Shipment</h4>
-            <div className="rounded-xl border border-gray-100 p-4">
-              {sh.method && <Row label="Method" value={sh.method} />}
-              {(sh.courierName || sh.carrier) && <Row label="Courier" value={sh.courierName || sh.carrier} />}
-              {sh.trackingNumber && <Row label="Tracking #" value={sh.trackingNumber} />}
-              {sh.provider && <Row label="Booked via" value={cap(sh.provider)} />}
-              {sh.estimatedDelivery && <Row label="Est. Delivery" value={fmtDateTime(sh.estimatedDelivery)} />}
-              {sh.labelUrl && (
-                <Row
-                  label="Courier label"
-                  value={
-                    <a
-                      href={sh.labelUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-medium text-emerald-700 underline hover:text-emerald-800"
-                    >
-                      Open AWB label
-                    </a>
-                  }
-                />
-              )}
-            </div>
-            {sh.labelUrl && (
-              <p className="mt-1.5 text-xs text-gray-500">
-                Couriers require the AWB label above at pickup; the 4×6 label below is address-only.
-              </p>
-            )}
-          </>
-        )}
-
-        {order.timeline.length > 0 && (
-          <>
-            <h4 className="mt-5 mb-2 text-sm font-semibold text-gray-700">Timeline</h4>
-            <div className="rounded-xl border border-gray-100 p-4">
-              {order.timeline.map((t, i) => (
-                <div key={i} className="flex justify-between gap-4 py-1.5 text-sm">
-                  <span className="text-gray-700">{cap(t.status)}{t.message ? ` — ${t.message}` : ""}</span>
-                  <span className="whitespace-nowrap text-gray-400">{fmtDateTime(t.timestamp)}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
-        <div className="mt-6 space-y-2">
-          <p className="text-xs font-medium text-gray-500">Print / download</p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => runDownload(() => downloadInvoice(order.id, order.orderId))}
-              disabled={invoiceBusy}
-              className="flex-1 rounded-lg bg-gray-900 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-            >
-              Invoice (A4)
-            </button>
-            <button
-              onClick={() => runDownload(() => downloadInvoice(order.id, order.orderId, "4x6"))}
-              disabled={invoiceBusy}
-              className="flex-1 rounded-lg bg-gray-900 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-            >
-              Invoice 4×6
-            </button>
-            <button
-              onClick={() => runDownload(() => downloadLabel(order.id, order.orderId))}
-              disabled={invoiceBusy}
-              className="flex-1 rounded-lg bg-gray-900 py-2.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-            >
-              Label 4×6
-            </button>
-          </div>
+        {/* Modal Footer */}
+        <div className="p-4 bg-gray-50 flex justify-end border-t border-gray-200">
           <button
+            type="button"
             onClick={onClose}
-            className="w-full rounded-lg border border-gray-200 py-2.5 font-medium text-gray-700 hover:bg-gray-50"
+            className="px-6 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-100 text-xs font-bold text-[#1e3a1f] transition-colors cursor-pointer"
           >
             Close
           </button>

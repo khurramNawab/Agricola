@@ -127,7 +127,7 @@ function streamInvoice4x6(order, out) {
   doc.fillColor('#111111').fontSize(9).text(`Order: ${order.orderId}`, 16, 36);
   doc.fillColor('#666666').fontSize(7.5).text(`${fmtDate(order.createdAt)}  ·  ${(order.paymentMethod || '-').toUpperCase()} (${(order.paymentStatus || '-').toUpperCase()})`);
   if (wh) {
-    doc.fillColor('#444444').fontSize(7.5).text(`Dispatch Hub: ${wh.name || wh.code}`);
+    doc.fillColor('#444444').fontSize(7.5).text(`Dispatch Facility: ${wh.name || wh.code}`);
   }
 
   doc.moveDown(0.4).fillColor('#111111').fontSize(8.5).text('Bill To');

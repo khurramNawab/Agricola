@@ -6,11 +6,13 @@ const Product = require('../models/Product');
 const Address = require('../models/Address');
 const Cart = require('../models/Cart');
 const User = require('../models/User');
+const Setting = require('../models/Setting');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const { buildSummary } = require('../utils/pricing');
 const { initiateOrderPayment } = require('../utils/paymentIntent');
 const mailer = require('../utils/email');
 const shipping = require('../utils/shipping');
+const { CouponUtils } = require('../utils/helpers');
 
 const ALLOWED_PAYMENT_METHODS = ['razorpay', 'cod'];
 
@@ -54,6 +56,12 @@ const toOrder = (order) => {
       subtotal: i.subtotal
     })),
     address: o.shippingAddress,
+    shipping: {
+      carrier: o.shipping?.carrier || null,
+      trackingNumber: o.shipping?.trackingNumber || null,
+      trackingUrl: o.shipping?.trackingUrl || null,
+      estimatedDelivery: o.shipping?.estimatedDelivery || null
+    },
     timeline: (o.timeline || []).map((t) => ({ status: t.status, message: t.message, at: t.timestamp })),
     createdAt: o.createdAt
   };
@@ -143,6 +151,23 @@ router.post('/', authenticate, async (req, res) => {
     // at payment success (fulfillPaidOrder in payments.js), so a cancelled/failed
     // payment never consumes stock. buildSummary already validated availability above.
     if (paymentMethod === 'cod') {
+      const globalSetting = await Setting.findOne({ key: 'global_config' });
+      if (globalSetting && globalSetting.enableCod === false) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'COD_DISABLED', message: 'Cash on Delivery is currently disabled by store management.' }
+        });
+      }
+      if (globalSetting && globalSetting.maxCodAmount && summary.total > globalSetting.maxCodAmount) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'COD_LIMIT_EXCEEDED',
+            message: `Cash on Delivery is only available for orders up to ₹${globalSetting.maxCodAmount.toLocaleString('en-IN')}. Please pay online.`
+          }
+        });
+      }
+
       const decremented = [];
       try {
         for (const line of summary.items) {
@@ -150,6 +175,12 @@ router.post('/', authenticate, async (req, res) => {
             { _id: line.product._id, stock: { $gte: line.qty }, status: 'active' },
             { $inc: { stock: -line.qty } }
           );
+          if (line.weight) {
+            await Product.updateOne(
+              { _id: line.product._id, 'variantStocks.size': line.weight },
+              { $inc: { 'variantStocks.$.stock': -line.qty } }
+            );
+          }
           if (result.modifiedCount !== 1) {
             throw Object.assign(new Error(`Insufficient stock for ${line.name}`), {
               statusCode: 409,
@@ -197,19 +228,29 @@ router.post('/', authenticate, async (req, res) => {
       coupon: summary.discountInfo
         ? { code: summary.discountInfo.code, discount: summary.discount, type: summary.discountInfo.type }
         : undefined,
+      appliedCoupons: Array.isArray(summary.appliedCoupons) && summary.appliedCoupons.length > 0
+        ? summary.appliedCoupons.map((c) => ({
+            code: c.code,
+            discount: c.discount,
+            type: c.type,
+            discountValue: c.discountValue
+          }))
+        : undefined,
       notes: { customer: notes?.customer || '' }
     });
     await order.save();
 
-    // Remember the email on the account for next time — best-effort, and only when
-    // the account has none yet. User.email is unique+sparse, so swallow the conflict
-    // when the address is already tied to another account (the order still has it).
-    if (!req.user.email) {
-      try {
-        await User.updateOne({ _id: req.user._id }, { $set: { email: contactEmail } });
-      } catch {
-        // duplicate email on another account — ignore
-      }
+    // Always sync customer name and email to user profile so admin Customers section shows real customer name
+    const customerName = (shippingAddress?.name || req.body?.name || '').trim();
+    const updateFields = {};
+    if (customerName && customerName !== '—' && customerName !== 'Customer') {
+      updateFields.name = customerName;
+    }
+    if (!req.user.email && contactEmail) {
+      updateFields.email = contactEmail.trim().toLowerCase();
+    }
+    if (Object.keys(updateFields).length > 0) {
+      await User.findByIdAndUpdate(req.user._id, { $set: updateFields });
     }
 
     // Start payment. If the gateway isn't configured, keep the order but
@@ -231,6 +272,15 @@ router.post('/', authenticate, async (req, res) => {
     // failed payment never empties the cart or places an order.
     if (paymentMethod === 'cod') {
       await Cart.updateOne({ user: req.user._id }, { $set: { items: [] } });
+      if (Array.isArray(order.appliedCoupons) && order.appliedCoupons.length > 0) {
+        for (const ac of order.appliedCoupons) {
+          if (ac.code) {
+            await CouponUtils.recordRedemption(ac.code, req.user._id, order.orderId, ac.discount);
+          }
+        }
+      } else if (order.coupon?.code) {
+        await CouponUtils.recordRedemption(order.coupon.code, req.user._id, order.orderId, order.pricing?.discount);
+      }
       await mailer.sendOrderConfirmation(order);
     }
 
@@ -250,9 +300,9 @@ router.post('/', authenticate, async (req, res) => {
 });
 
 // @desc    Get logged-in user's orders
-// @route   GET /api/v1/orders
+// @route   GET /api/v1/orders (alias: /api/v1/orders/my-orders)
 // @access  Private
-router.get('/', authenticate, async (req, res) => {
+router.get(['/', '/my-orders'], authenticate, async (req, res) => {
   try {
     const { page = 1, limit = 10, status, sort = '-createdAt' } = req.query;
     const query = { user: req.user._id };
@@ -307,6 +357,7 @@ router.post('/track', async (req, res) => {
       data: {
         orderId: shaped.orderId,
         status: shaped.status,
+        shipping: shaped.shipping,
         timeline: customerTimeline(shaped.timeline),
         items: shaped.items,
         address: shaped.address
@@ -360,8 +411,11 @@ const cancelOrder = async (req, res) => {
       return res.status(400).json({ success: false, error: { code: 'INVALID_STATUS', message: 'Order cannot be cancelled in its current status' } });
     }
 
-    // Restore stock
-    await restoreOrderStock(order);
+    // Restore stock only if stock was actually decremented (COD orders or paid prepaid orders)
+    const wasStockDecremented = order.paymentMethod === 'cod' || order.paymentStatus === 'paid';
+    if (wasStockDecremented) {
+      await restoreOrderStock(order);
+    }
 
     order.status = 'cancelled';
     order.timeline.push({ status: 'cancelled', message: reason || 'Cancelled by customer', timestamp: new Date(), updatedBy: req.user._id });
@@ -388,15 +442,22 @@ router.delete('/:id', authenticate, async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
     }
-    const result = await Order.deleteOne({
+    const order = await Order.findOne({
       _id: req.params.id,
       user: req.user._id,
       status: 'pending',
       paymentStatus: 'pending'
     });
-    if (result.deletedCount === 0) {
+    if (!order) {
       return res.status(409).json({ success: false, error: { code: 'NOT_DISCARDABLE', message: 'Order can no longer be discarded' } });
     }
+
+    // If stock was reserved at placement (COD), restore it upon discarding
+    if (order.paymentMethod === 'cod') {
+      await restoreOrderStock(order);
+    }
+
+    await Order.deleteOne({ _id: order._id });
     res.status(200).json({ success: true, message: 'Order discarded' });
   } catch (error) {
     console.error('Discard order error:', error);
@@ -470,7 +531,8 @@ router.patch('/:id/status', authenticate, requireAdmin, async (req, res) => {
     }
 
     const oldStatus = order.status;
-    if ((status === 'cancelled' || status === 'refunded') && oldStatus !== 'cancelled' && oldStatus !== 'refunded') {
+    const wasStockDecremented = order.paymentMethod === 'cod' || order.paymentStatus === 'paid';
+    if ((status === 'cancelled' || status === 'refunded') && oldStatus !== 'cancelled' && oldStatus !== 'refunded' && wasStockDecremented) {
       await restoreOrderStock(order);
     }
     order.status = status;

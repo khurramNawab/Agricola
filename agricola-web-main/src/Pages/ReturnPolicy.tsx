@@ -1,133 +1,140 @@
 import { Link } from "react-router-dom";
 import Footer from "../components/layout/Footer";
 
-// Draft return/refund policy for a perishable/agri store. Review and adjust the
-// windows, timelines, and contact details to match your actual operations.
-const UPDATED = "August 2026";
-
 export default function ReturnPolicy() {
   return (
-    <div className="flex min-h-screen flex-col bg-white">
-      <main className="flex-1">
-        <div className="container mx-auto max-w-3xl px-4 py-12">
-          <h1 className="mb-2 font-serif text-3xl text-gray-900 sm:text-4xl">
-            Return &amp; Refund Policy
-          </h1>
-          <p className="mb-10 text-sm text-gray-500">Last updated: {UPDATED}</p>
+    <div id="webcrumbs" className="min-h-screen bg-[#fbf9f6] flex flex-col font-sans">
+      <main className="flex-1 max-w-4xl mx-auto w-full px-4 lg:px-8 pt-6 pb-16">
+        {/* Top Breadcrumb */}
+        <section className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-semibold text-[#434936]">
+            <Link to="/products" className="hover:text-[#486800] transition-colors flex items-center gap-1">
+              <span className="material-symbols-outlined text-sm">storefront</span>
+              <span>Marketplace</span>
+            </Link>
+            <span className="material-symbols-outlined text-xs text-gray-300">chevron_right</span>
+            <span className="text-[#486800] font-bold">Return &amp; Refund Policy</span>
+          </nav>
 
-          <div className="space-y-8 text-sm leading-relaxed text-gray-600">
-            <p>
-              We want you to be happy with every order from AgriCola. Because many
-              of our products are fresh or perishable, the terms below explain when
-              and how you can return an item or request a refund.
-            </p>
-
-            <section>
-              <h2 className="mb-2 text-lg font-semibold text-gray-900">
-                Reporting window
-              </h2>
-              <ul className="list-disc space-y-1 pl-5">
-                <li>
-                  <span className="font-medium text-gray-800">Perishable items</span>{" "}
-                  (fruits, vegetables, dairy, and other fresh produce): report any
-                  issue within <span className="font-medium">48 hours</span> of
-                  delivery.
-                </li>
-                <li>
-                  <span className="font-medium text-gray-800">Non-perishable items</span>{" "}
-                  (grains, pulses, spices, seeds, packaged goods): report within{" "}
-                  <span className="font-medium">7 days</span> of delivery, unopened
-                  and in original packaging.
-                </li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="mb-2 text-lg font-semibold text-gray-900">
-                Eligible for return / refund
-              </h2>
-              <ul className="list-disc space-y-1 pl-5">
-                <li>The item arrived damaged, spoiled, or defective.</li>
-                <li>You received the wrong item or an incorrect quantity.</li>
-                <li>The item has a genuine quality issue.</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="mb-2 text-lg font-semibold text-gray-900">
-                Not eligible
-              </h2>
-              <ul className="list-disc space-y-1 pl-5">
-                <li>
-                  Perishable goods that have been opened or partially used, unless
-                  there is a quality issue.
-                </li>
-                <li>Change of mind on perishable/fresh items.</li>
-                <li>Items reported after the applicable window above.</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="mb-2 text-lg font-semibold text-gray-900">
-                How to request
-              </h2>
-              <p>
-                Contact our support team with your <span className="font-medium">Order ID</span>{" "}
-                and a photo of the item (for damage/quality issues):
-              </p>
-              <p className="mt-2">
-                📞{" "}
-                <a href="tel:+919012659000" className="text-green-600 hover:underline">
-                  +91 9012659000
-                </a>{" "}
-                &nbsp;·&nbsp; ✉️{" "}
-                <a
-                  href="mailto:support@agricola.co.in"
-                  className="text-green-600 hover:underline"
-                >
-                  support@agricola.co.in
-                </a>
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-2 text-lg font-semibold text-gray-900">
-                Refunds &amp; replacements
-              </h2>
-              <ul className="list-disc space-y-1 pl-5">
-                <li>
-                  Once your request is approved, we'll offer a{" "}
-                  <span className="font-medium">replacement</span> or a{" "}
-                  <span className="font-medium">refund</span>.
-                </li>
-                <li>
-                  Refunds are issued to your original payment method within{" "}
-                  <span className="font-medium">5–7 business days</span> of approval.
-                  For Cash on Delivery orders, we'll arrange a bank/UPI refund.
-                </li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="mb-2 text-lg font-semibold text-gray-900">
-                Order cancellation
-              </h2>
-              <p>
-                You can cancel an order any time before it is dispatched. Once a
-                shipment has been handed to the courier, cancellation may not be
-                possible — please use the return process above instead.
-              </p>
-            </section>
-
-            <p className="border-t border-gray-100 pt-6 text-gray-500">
-              Questions? Visit our{" "}
-              <Link to="/contact" className="text-green-600 hover:underline">
-                Contact
-              </Link>{" "}
-              page or reach us at the number above.
-            </p>
+          <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-full border border-[#1e3a1f]/10 shadow-2xs">
+            <span className="material-symbols-outlined text-sm text-[#486800]">verified_user</span>
+            <span className="text-xs font-bold text-[#434936]">
+              100% Purity &amp; Freshness Guarantee
+            </span>
           </div>
-        </div>
+        </section>
+
+        {/* Policy Content Card */}
+        <article className="bg-white rounded-3xl p-6 sm:p-10 shadow-xs border border-gray-100 flex flex-col gap-6 text-xs sm:text-sm text-[#434936] leading-relaxed">
+          <header className="border-b border-gray-100 pb-5">
+            <span className="text-[10px] uppercase font-bold text-[#486800] tracking-wider bg-[#c9ecc4]/60 px-3 py-1 rounded-full">
+              Customer Assurance
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-black text-[#1e3a1f] tracking-tight mt-2 mb-1">
+              Return, Replacement &amp; Refund Policy
+            </h1>
+            <p className="text-xs text-gray-400 font-medium">
+              Effective Date: August 2026 • Valid across all direct online orders
+            </p>
+          </header>
+
+          <p>
+            At <strong>AgriCola</strong>, every batch of Mithila Makhana, cold-pressed mustard oil, turmeric, and organic seeds undergoes stringent lab testing and nitrogen-flushed eco packaging. If your shipment ever fails to meet our uncompromising purity standards, our zero-friction policy ensures you are promptly refunded or sent a fresh replacement.
+          </p>
+
+          {/* Reporting Windows */}
+          <section className="bg-[#f5f3f0] rounded-2xl p-5 sm:p-6 border border-gray-200/60">
+            <h2 className="text-sm sm:text-base font-black text-[#1e3a1f] mb-3 flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#486800]">schedule</span>
+              <span>Reporting Windows by Category</span>
+            </h2>
+            <ul className="space-y-2.5">
+              <li className="flex items-start gap-2">
+                <span className="material-symbols-outlined text-sm text-[#486800] mt-0.5">check_circle</span>
+                <span>
+                  <strong>Perishable &amp; Fresh Superfoods</strong> (Fresh fruits, seasonal harvests, cold-pressed oils): Report any issue within <strong>48 hours</strong> of delivery receipt.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="material-symbols-outlined text-sm text-[#486800] mt-0.5">check_circle</span>
+                <span>
+                  <strong>Pantry &amp; Dry Sealed Lots</strong> (Mithila Makhana, whole spices, chia/flax seeds, grains): Report within <strong>7 days</strong> of delivery in unopened original vacuum pouches.
+                </span>
+              </li>
+            </ul>
+          </section>
+
+          {/* Eligibility Criteria */}
+          <section>
+            <h2 className="text-sm sm:text-base font-black text-[#1e3a1f] mb-3">
+              Qualifying Conditions for Full Replacement / Refund
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-4 rounded-2xl bg-[#c9ecc4]/30 border border-[#84b817]/20 flex items-start gap-3">
+                <span className="material-symbols-outlined text-lg text-[#486800] shrink-0">verified</span>
+                <div>
+                  <strong className="text-xs text-[#1e3a1f] block mb-0.5">Quality / Crunch Compromise</strong>
+                  <span className="text-xs text-[#434936]">If product lacks crunch, freshness, or natural aroma upon first unsealing.</span>
+                </div>
+              </div>
+              <div className="p-4 rounded-2xl bg-[#c9ecc4]/30 border border-[#84b817]/20 flex items-start gap-3">
+                <span className="material-symbols-outlined text-lg text-[#486800] shrink-0">inventory_2</span>
+                <div>
+                  <strong className="text-xs text-[#1e3a1f] block mb-0.5">Transit Damage or Seal Tamper</strong>
+                  <span className="text-xs text-[#434936]">Package arrived torn, crushed, or vacuum barrier compromised by courier.</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* How to initiate */}
+          <section className="border-t border-gray-100 pt-5">
+            <h2 className="text-sm sm:text-base font-black text-[#1e3a1f] mb-2">
+              How to Initiate a Claim
+            </h2>
+            <p className="mb-3">
+              Simply message our support coordinators with your <strong>Order Reference ID</strong> and a brief photo of the package:
+            </p>
+            <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-[#1e3a1f]">
+              <a
+                href="tel:+919012659000"
+                className="px-4 py-2 rounded-full bg-[#f5f3f0] hover:bg-[#eae5dc] flex items-center gap-1.5 transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm text-[#486800]">phone</span>
+                <span>+91 9012659000</span>
+              </a>
+              <a
+                href="mailto:support@agricola.co.in"
+                className="px-4 py-2 rounded-full bg-[#f5f3f0] hover:bg-[#eae5dc] flex items-center gap-1.5 transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm text-[#486800]">mail</span>
+                <span>support@agricola.co.in</span>
+              </a>
+            </div>
+          </section>
+
+          {/* Refund Timeline */}
+          <section className="border-t border-gray-100 pt-5">
+            <h2 className="text-sm sm:text-base font-black text-[#1e3a1f] mb-2">
+              Refund Disbursement Timelines
+            </h2>
+            <p>
+              Once your claim is validated, refunds are credited back to your original source (UPI, Credit/Debit Card, Netbanking) within <strong>5–7 banking business days</strong>. For Cash on Delivery orders, funds are deposited directly to your provided UPI ID or bank account.
+            </p>
+          </section>
+
+          <footer className="border-t border-gray-100 pt-5 flex items-center justify-between flex-wrap gap-3">
+            <span className="text-xs text-gray-400">
+              Need assistance? Our team is available Mon–Sat (10 AM to 7 PM).
+            </span>
+            <Link
+              to="/contact"
+              className="text-xs font-bold text-[#486800] hover:text-[#1e3a1f] underline"
+            >
+              Contact Support &rarr;
+            </Link>
+          </footer>
+        </article>
       </main>
       <Footer />
     </div>

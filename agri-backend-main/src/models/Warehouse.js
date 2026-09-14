@@ -46,6 +46,16 @@ const warehouseSchema = new mongoose.Schema({
     type: String,
     enum: ['active', 'inactive'],
     default: 'active'
+  },
+  climateControl: {
+    type: String,
+    trim: true,
+    default: '18°C Cold Sealed'
+  },
+  sameDayCutoff: {
+    type: String,
+    trim: true,
+    default: '4:00 PM Same-Day Cutoff'
   }
 }, {
   timestamps: true

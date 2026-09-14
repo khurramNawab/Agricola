@@ -24,30 +24,34 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
   }, [menuOpen]);
 
   return (
-    <header className="bg-white border-b border-gray-200 px-4 sm:px-8 py-4">
+    <header className="bg-white/80 backdrop-blur-xl border-b border-[#1e3a1f]/10 shadow-[0_1px_8px_rgba(0,0,0,0.03)] px-4 sm:px-8 py-3.5 sticky top-0 z-30">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onMenuClick}
-            className="lg:hidden text-gray-600 hover:text-gray-900"
+            className="lg:hidden text-[#434936] hover:text-[#1b1c1a]"
             aria-label="Open menu"
           >
             <Menu size={22} />
           </button>
-          <h2 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
-            {title}
-          </h2>
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase font-bold text-[#84b817] tracking-wider hidden sm:inline">Operations</span>
+            <span className="text-gray-300 hidden sm:inline">•</span>
+            <h2 className="text-lg sm:text-xl font-bold text-[#1b1c1a] truncate">
+              {title}
+            </h2>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
           <div className="relative hidden sm:block">
             <input
               type="text"
-              placeholder="Search"
-              className="pl-4 pr-12 py-2 bg-gray-50 border-0 rounded-lg w-40 md:w-64 focus:outline-none focus:ring-2 focus:ring-gray-200"
+              placeholder="Search store, orders, SKUs..."
+              className="pl-4 pr-10 py-2 bg-[#f5f3f0] border-0 rounded-xl text-xs font-medium w-48 md:w-64 focus:outline-none focus:ring-2 focus:ring-[#84b817]/30 text-[#1b1c1a] placeholder:text-gray-400"
             />
-            <button className="absolute right-2 top-1/2 -translate-y-1/2 bg-gray-900 text-white p-1.5 rounded-md">
-              <Search size={16} />
+            <button className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-[#1e3a1f] text-white p-1 rounded-lg hover:bg-[#84b817] transition-colors">
+              <Search size={14} />
             </button>
           </div>
 
@@ -56,7 +60,7 @@ export default function Header({ title, onMenuClick }: HeaderProps) {
               onClick={() => setMenuOpen((open) => !open)}
               aria-haspopup="menu"
               aria-expanded={menuOpen}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-[#f5f3f0] transition-colors"
             >
               <div className="w-10 h-10 bg-[#84b817] rounded-full flex items-center justify-center text-white font-semibold">
                 A

@@ -87,7 +87,7 @@ const verifyOtp = async (identifier, purpose, code) => {
     throw new OtpError('OTP_TOO_MANY_ATTEMPTS', 'Too many incorrect attempts. Please request a new code', 429);
   }
 
-  if (process.env.OTP_DEV_MODE === 'true' && String(code) === '123456') {
+  if (process.env.OTP_DEV_MODE === 'true' && process.env.NODE_ENV !== 'production' && String(code) === '123456') {
     await Otp.deleteOne({ _id: record._id });
     return true;
   }

@@ -1,1 +1,75 @@
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-family-base: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    font-family: var(--font-family-base);
+    background-color: #fbf9f6;
+    color: #1b1c1a;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  /* Hide default browser side scrollbars completely as requested */
+  html, body {
+    overflow-x: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
+    width: 0px;
+    background: transparent;
+  }
+
+  /* Disable browser native number spinners that trigger jumpy wheel scrolling */
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+}
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --color-primary: #84b817;
+  --color-primary-container: #84b817;
+  --color-primary-dark: #486800;
+  --color-secondary: #1e3a1f;
+  --color-secondary-container: #c9ecc4;
+  --color-on-secondary-container: #4e6c4c;
+  --color-tertiary: #d97706;
+  --color-tertiary-container: #f78e27;
+  --color-surface: #fbf9f6;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f5f3f0;
+  --color-surface-container: #efeeeb;
+  --color-surface-container-high: #eae8e5;
+  --color-on-surface: #1b1c1a;
+  --color-on-surface-variant: #434936;
+}
+
+/* Glassmorphism & Custom Luxury Scrollbars */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(30, 58, 31, 0.08);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.90);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 12px 30px -8px rgba(30, 58, 31, 0.08);
+}

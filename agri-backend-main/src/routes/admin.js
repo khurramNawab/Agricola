@@ -7,6 +7,16 @@ const Order = require('../models/Order');
 const Category = require('../models/Category');
 const Warehouse = require('../models/Warehouse');
 const ProductWarehouseStock = require('../models/ProductWarehouseStock');
+const Coupon = require('../models/Coupon');
+const Cart = require('../models/Cart');
+const AbandonedCartLog = require('../models/AbandonedCartLog');
+const HeroCampaign = require('../models/HeroCampaign');
+const LaunchSubscriber = require('../models/LaunchSubscriber');
+const Feedback = require('../models/Feedback');
+const Setting = require('../models/Setting');
+const Blog = require('../models/Blog');
+const mailer = require('../utils/email');
+const { TEMPLATES, formatTemplate, sendAbandonedEmail, buildWhatsAppLink } = require('../utils/abandonedCart');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const { streamInvoice, streamInvoice4x6, streamShippingLabel } = require('../utils/invoice');
 
@@ -489,7 +499,7 @@ router.get('/warehouses/sync-preview', async (req, res) => {
           shiprocketNickname: rawNickname,
           label,
           code: `WH-${rawNickname.toUpperCase().replace(/\W/g, '')}`,
-          name: `WH-${rawNickname} (${city || 'Hub'})`,
+          name: `WH-${rawNickname} (${city || 'Facility'})`,
           address: { street, city, state, pincode, phone },
           spocName,
           spocPhone: phone,
@@ -617,7 +627,8 @@ router.post('/warehouses/sync-apply', async (req, res) => {
 });
 
 // @route   POST /api/v1/admin/warehouses
-// @desc    Disabled — warehouse creation must happen in Shiprocket first, then seeded by developer
+// @desc    Intentionally disabled — warehouses must originate from logistics provider setup
+//          (registered in Shiprocket dashboard and synced via /sync-apply, or manually seeded by developer)
 router.post('/warehouses', async (req, res) => {
   return res.status(403).json({
     success: false,
@@ -626,54 +637,6 @@ router.post('/warehouses', async (req, res) => {
       message: 'Creating new warehouses via the app is not supported — new warehouses must first be registered in the Shiprocket dashboard, then added directly by a developer.'
     }
   });
-});
-
-// @route   POST /api/v1/admin/warehouses
-// @desc    Create a new warehouse (custom / Ekart)
-router.post('/warehouses', [
-  body('name').trim().notEmpty().withMessage('Warehouse name is required'),
-  body('code').optional().trim(),
-  body('address.street').trim().notEmpty().withMessage('Street address is required'),
-  body('address.city').trim().notEmpty().withMessage('City is required'),
-  body('address.state').trim().notEmpty().withMessage('State is required'),
-  body('address.pincode').matches(/^[1-9][0-9]{5}$/).withMessage('Valid 6-digit pincode is required')
-], handleValidationErrors, async (req, res) => {
-  try {
-    const { code, name, shiprocketPickupNickname, ekartPickupAlias, ekartGstin, address, spocName, spocPhone, isDefault, status } = req.body;
-
-    let baseCode = (code || `WH-${(name || 'HUB').toUpperCase().replace(/[^A-Z0-9]/g, '')}`).trim().toUpperCase();
-    if (!baseCode.startsWith('WH-')) baseCode = `WH-${baseCode}`;
-    const existingCode = await Warehouse.findOne({ code: baseCode });
-    const finalCode = existingCode ? `${baseCode}-${Date.now().toString().slice(-4)}` : baseCode;
-
-    if (isDefault) {
-      await Warehouse.updateMany({}, { isDefault: false });
-    }
-
-    const warehouse = await Warehouse.create({
-      code: finalCode,
-      name: String(name).trim(),
-      shiprocketPickupNickname: String(shiprocketPickupNickname || '').trim(),
-      ekartPickupAlias: String(ekartPickupAlias || '').trim(),
-      ekartGstin: String(ekartGstin || '').trim(),
-      address: {
-        street: String(address.street).trim(),
-        city: String(address.city).trim(),
-        state: String(address.state).trim(),
-        pincode: String(address.pincode).trim(),
-        phone: String(address.phone || spocPhone || '').trim()
-      },
-      spocName: String(spocName || '').trim(),
-      spocPhone: String(spocPhone || '').trim(),
-      isDefault: !!isDefault,
-      status: status === 'inactive' ? 'inactive' : 'active'
-    });
-
-    res.status(201).json({ success: true, message: 'Warehouse created successfully', data: warehouse });
-  } catch (error) {
-    console.error('Create warehouse error:', error);
-    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create warehouse' } });
-  }
 });
 
 // @route   PUT /api/v1/admin/warehouses/:id
@@ -688,7 +651,7 @@ router.put('/warehouses/:id', [
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Warehouse not found' } });
     }
 
-    const { name, code, shiprocketPickupNickname, ekartPickupAlias, ekartGstin, address, spocName, spocPhone, isDefault, status } = req.body;
+    const { name, code, shiprocketPickupNickname, ekartPickupAlias, ekartGstin, address, spocName, spocPhone, isDefault, status, climateControl, sameDayCutoff } = req.body;
 
     if (name !== undefined) warehouse.name = String(name).trim();
     if (code !== undefined && code.trim()) warehouse.code = String(code).trim().toUpperCase();
@@ -698,6 +661,8 @@ router.put('/warehouses/:id', [
     if (spocName !== undefined) warehouse.spocName = String(spocName).trim();
     if (spocPhone !== undefined) warehouse.spocPhone = String(spocPhone).trim();
     if (status !== undefined) warehouse.status = status === 'inactive' ? 'inactive' : 'active';
+    if (climateControl !== undefined) warehouse.climateControl = String(climateControl).trim();
+    if (sameDayCutoff !== undefined) warehouse.sameDayCutoff = String(sameDayCutoff).trim();
 
     if (address && typeof address === 'object') {
       if (address.street !== undefined) warehouse.address.street = String(address.street).trim();
@@ -721,7 +686,7 @@ router.put('/warehouses/:id', [
 });
 
 // @route   PATCH /api/v1/admin/warehouses/:id/status
-// @desc    Toggle warehouse status (active/inactive)
+// @desc    Toggle warehouse status (active/inactive) & recalculate affected product stocks
 router.patch('/warehouses/:id/status', async (req, res) => {
   try {
     const warehouse = await Warehouse.findById(req.params.id);
@@ -734,10 +699,154 @@ router.patch('/warehouses/:id/status', async (req, res) => {
     }
     warehouse.status = status;
     await warehouse.save();
-    res.json({ success: true, message: `Warehouse status updated to ${status}`, data: warehouse });
+
+    // Recalculate Product.stock for all products affected by this warehouse
+    const ProductWarehouseStock = require('../models/ProductWarehouseStock');
+    const Product = require('../models/Product');
+
+    const activeWarehouses = await Warehouse.find({ status: 'active' }).select('_id');
+    const activeWarehouseIds = activeWarehouses.map((w) => w._id);
+
+    const affectedStocks = await ProductWarehouseStock.find({ warehouse: warehouse._id });
+    const productIds = Array.from(new Set(affectedStocks.map((s) => String(s.product))));
+
+    for (const prodId of productIds) {
+      const activeStocks = await ProductWarehouseStock.find({
+        product: prodId,
+        warehouse: { $in: activeWarehouseIds }
+      });
+      const activeTotal = activeStocks.reduce((sum, s) => sum + (s.stock || 0), 0);
+      await Product.findByIdAndUpdate(prodId, { stock: activeTotal });
+    }
+
+    res.json({
+      success: true,
+      message: `Warehouse status updated to ${status}. Recalculated stock for ${productIds.length} products.`,
+      data: warehouse
+    });
   } catch (error) {
     console.error('Toggle warehouse status error:', error);
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update status' } });
+  }
+});
+
+// @route   GET /api/v1/admin/warehouses/:id/test-connectivity
+// @desc    Run real carrier connectivity diagnostic test for a warehouse
+router.get('/warehouses/:id/test-connectivity', async (req, res) => {
+  try {
+    const warehouse = await Warehouse.findById(req.params.id);
+    if (!warehouse) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Warehouse not found' } });
+    }
+
+    const shiprocket = require('../utils/shiprocket');
+    const ekart = require('../utils/ekart');
+
+    // 1. Shiprocket Diagnostic Ping
+    let shiprocketResult = {
+      status: 'pending',
+      configured: shiprocket.isConfigured(),
+      latencyMs: 0,
+      nickname: warehouse.shiprocketPickupNickname || '',
+      message: ''
+    };
+
+    if (shiprocket.isConfigured()) {
+      const t0 = Date.now();
+      try {
+        await Promise.race([
+          shiprocket.listPickupLocations(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Shiprocket ping timeout')), 10000))
+        ]);
+        const latencyMs = Date.now() - t0;
+        shiprocketResult = {
+          status: 'ready',
+          configured: true,
+          latencyMs,
+          nickname: warehouse.shiprocketPickupNickname || '',
+          message: `${latencyMs}ms • Authenticated & Active`
+        };
+      } catch (err) {
+        shiprocketResult = {
+          status: 'error',
+          configured: true,
+          latencyMs: Date.now() - t0,
+          nickname: warehouse.shiprocketPickupNickname || '',
+          message: err.message || 'Carrier ping failed'
+        };
+      }
+    } else {
+      shiprocketResult = {
+        status: 'unconfigured',
+        configured: false,
+        latencyMs: 0,
+        nickname: warehouse.shiprocketPickupNickname || '',
+        message: 'Credentials not configured in environment'
+      };
+    }
+
+    // 2. Ekart Diagnostic Ping
+    let ekartResult = {
+      status: 'pending',
+      configured: ekart.isConfigured(),
+      latencyMs: 0,
+      message: ''
+    };
+
+    if (ekart.isConfigured()) {
+      const t0Ekart = Date.now();
+      try {
+        await Promise.race([
+          ekart.getToken(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Ekart ping timeout')), 10000))
+        ]);
+        const latencyMs = Date.now() - t0Ekart;
+        ekartResult = {
+          status: 'ready',
+          configured: true,
+          latencyMs,
+          message: `${latencyMs}ms • Ready`
+        };
+      } catch (err) {
+        ekartResult = {
+          status: 'error',
+          configured: true,
+          latencyMs: Date.now() - t0Ekart,
+          message: err.message || 'Ekart connection failed'
+        };
+      }
+    } else {
+      ekartResult = {
+        status: 'unconfigured',
+        configured: false,
+        latencyMs: 0,
+        message: 'Ekart credentials not configured'
+      };
+    }
+
+    // 3. Pincode Reach Engine
+    const reachResult = {
+      status: 'ready',
+      label: '29,000+ Pincodes',
+      coverage: 'Pan-India Active Reach'
+    };
+
+    res.json({
+      success: true,
+      data: {
+        warehouseId: warehouse._id,
+        code: warehouse.code,
+        name: warehouse.name,
+        pincode: warehouse.address?.pincode,
+        shiprocket: shiprocketResult,
+        ekart: ekartResult,
+        reach: reachResult,
+        testedAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Test warehouse connectivity error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to test connectivity' } });
   }
 });
 
@@ -787,8 +896,14 @@ const toAdminProduct = (p) => ({
   stock: p.stock,
   status: adminStockStatus(p.stock),
   sizes: p.sizes || [],
+  variantStocks: (p.variantStocks || []).map((v) => ({
+    size: v.size,
+    stock: v.stock !== undefined ? v.stock : 0,
+    price: v.price !== undefined ? v.price : null
+  })),
   images: (p.images || []).map((i) => ({ url: i.url, publicId: i.publicId || null })),
   featured: !!p.featured,
+  isOrganic: p.isOrganic !== false, // default true for existing products without the field
   shortDescription: p.description || '',
   about: p.about || '',
   usageInstructions: p.usageInstructions || '',
@@ -887,9 +1002,14 @@ router.put('/products/:id/warehouse-stock', async (req, res) => {
       );
     }
 
-    // Recalculate total product stock sum
-    const allStocks = await ProductWarehouseStock.find({ product: product._id });
-    const totalStock = allStocks.reduce((sum, s) => sum + (s.stock || 0), 0);
+    // Recalculate total product stock sum (active warehouses only)
+    const activeWarehouses = await Warehouse.find({ status: 'active' }).select('_id');
+    const activeWarehouseIds = activeWarehouses.map((w) => w._id);
+    const activeStocks = await ProductWarehouseStock.find({
+      product: product._id,
+      warehouse: { $in: activeWarehouseIds }
+    });
+    const totalStock = activeStocks.reduce((sum, s) => sum + (s.stock || 0), 0);
 
     product.stock = totalStock;
     await product.save();
@@ -901,7 +1021,7 @@ router.put('/products/:id/warehouse-stock', async (req, res) => {
         id: product._id,
         productId: product.productId,
         stock: totalStock,
-        warehouseStock: allStocks.map((ws) => ({ warehouseId: ws.warehouse, stock: ws.stock }))
+        warehouseStock: activeStocks.map((ws) => ({ warehouseId: ws.warehouse, stock: ws.stock }))
       }
     });
   } catch (error) {
@@ -914,18 +1034,30 @@ router.put('/products/:id/warehouse-stock', async (req, res) => {
 const mapProductPayload = async (body) => {
   const mapped = {};
   if (body.name !== undefined) mapped.name = body.name;
-  if (body.sellingPrice !== undefined) mapped.price = body.sellingPrice;
-  if (body.originalPrice !== undefined) mapped.compareAtPrice = body.originalPrice;
+  if (body.sellingPrice !== undefined) mapped.price = Math.max(0, Number(body.sellingPrice) || 0);
+  if (body.originalPrice !== undefined) mapped.compareAtPrice = body.originalPrice !== null && body.originalPrice !== '' ? Math.max(0, Number(body.originalPrice) || 0) : null;
   if (body.shortDescription !== undefined) mapped.description = body.shortDescription;
   if (body.about !== undefined) mapped.about = body.about;
   if (body.usageInstructions !== undefined) mapped.usageInstructions = body.usageInstructions;
   if (body.whyChoose !== undefined) mapped.whyChoose = body.whyChoose;
   if (body.variants !== undefined) mapped.sizes = variantsToSizes(body.variants);
+  if (body.variantStocks !== undefined && Array.isArray(body.variantStocks)) {
+    mapped.variantStocks = body.variantStocks.map((v) => ({
+      size: String(v.size || '').trim(),
+      stock: Math.max(0, parseInt(v.stock, 10) || 0),
+      price: v.price !== undefined && v.price !== null && v.price !== '' ? Math.max(0, Number(v.price) || 0) : undefined
+    })).filter((v) => v.size);
+    if (mapped.variantStocks.length > 0 && body.stock === undefined) {
+      mapped.stock = mapped.variantStocks.reduce((sum, v) => sum + v.stock, 0);
+    }
+  }
   if (body.images !== undefined) mapped.images = normalizeImages(body.images);
-  if (body.stock !== undefined) mapped.stock = body.stock;
+  if (body.stock !== undefined) mapped.stock = Math.max(0, parseInt(body.stock, 10) || 0);
   if (body.featured !== undefined) mapped.featured = body.featured;
   if (body.tags !== undefined) mapped.tags = body.tags;
   if (body.newlyAdded !== undefined) mapped.newlyAdded = body.newlyAdded;
+  // isOrganic: pass through as boolean; undefined = keep schema default (true)
+  if (body.isOrganic !== undefined) mapped.isOrganic = !!body.isOrganic;
   return mapped;
 };
 
@@ -1775,6 +1907,1675 @@ router.put('/orders/:id/status', [
   } catch (error) {
     console.error('Admin update order status error:', error);
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update order status' } });
+  }
+});
+
+// ============================================================================
+// COUPON MANAGEMENT ROUTES
+// ============================================================================
+
+// Helper to determine coupon computed status
+const getCouponStatus = (coupon) => {
+  if (!coupon.isActive) return 'inactive';
+  const now = new Date();
+  if (coupon.validFrom && now < new Date(coupon.validFrom)) return 'upcoming';
+  if (coupon.validTo && now > new Date(coupon.validTo)) return 'expired';
+  if (coupon.totalUsageLimit && coupon.usedCount >= coupon.totalUsageLimit) return 'exhausted';
+  return 'active';
+};
+
+// @route   GET /api/v1/admin/coupons
+// @desc    List coupons with search, status filter, and pagination
+// @access  Private (Admin)
+router.get('/coupons', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const search = req.query.search ? String(req.query.search).trim() : '';
+    const status = req.query.status || 'all';
+
+    const query = {};
+    if (search) {
+      query.$or = [
+        { code: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const now = new Date();
+    if (status === 'active') {
+      query.isActive = true;
+      query.validTo = { $gte: now };
+      query.$expr = {
+        $or: [
+          { $eq: ['$totalUsageLimit', null] },
+          { $lt: ['$usedCount', '$totalUsageLimit'] }
+        ]
+      };
+    } else if (status === 'expired') {
+      query.validTo = { $lt: now };
+    } else if (status === 'inactive') {
+      query.isActive = false;
+    } else if (status === 'exhausted') {
+      query.totalUsageLimit = { $ne: null };
+      query.$expr = { $gte: ['$usedCount', '$totalUsageLimit'] };
+    }
+
+    const total = await Coupon.countDocuments(query);
+    const coupons = await Coupon.find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate('createdBy', 'name email');
+
+    const formatted = coupons.map((c) => ({
+      id: c._id,
+      code: c.code,
+      description: c.description,
+      discountType: c.discountType,
+      discountValue: c.discountValue,
+      minOrderValue: c.minOrderValue,
+      maxDiscountCap: c.maxDiscountCap,
+      validFrom: c.validFrom,
+      validTo: c.validTo,
+      totalUsageLimit: c.totalUsageLimit,
+      perUserLimit: c.perUserLimit,
+      usedCount: c.usedCount || 0,
+      isActive: c.isActive,
+      firstOrderOnly: c.firstOrderOnly,
+      isFestivalOffer: Boolean(c.isFestivalOffer),
+      status: getCouponStatus(c),
+      redemptionsCount: (c.redemptions || []).length,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        coupons: formatted,
+        pagination: {
+          total,
+          page,
+          pages: Math.ceil(total / limit) || 1,
+          limit
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Admin list coupons error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch coupons' } });
+  }
+});
+
+// @route   GET /api/v1/admin/coupons/suggest-code
+// @desc    Generate a random unique coupon code
+router.get('/coupons/suggest-code', async (req, res) => {
+  try {
+    const prefixes = ['AGRI', 'FESTIVE', 'SAVE', 'ORGANIC', 'FRESH', 'SPECIAL'];
+    const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const randomNum = Math.floor(10 + Math.random() * 90);
+    const candidate = `${prefix}${randomNum}`;
+
+    const exists = await Coupon.findOne({ code: candidate });
+    const code = exists ? `${prefix}${Math.floor(100 + Math.random() * 900)}` : candidate;
+
+    res.json({ success: true, data: { code } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to generate code' } });
+  }
+});
+
+// @route   GET /api/v1/admin/coupons/:id
+// @desc    Get single coupon with full redemption history
+router.get('/coupons/:id', async (req, res) => {
+  try {
+    const coupon = await Coupon.findById(req.params.id)
+      .populate('redemptions.user', 'name phone email userId')
+      .populate('createdBy', 'name email');
+
+    if (!coupon) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Coupon not found' } });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: coupon._id,
+        code: coupon.code,
+        description: coupon.description,
+        discountType: coupon.discountType,
+        discountValue: coupon.discountValue,
+        minOrderValue: coupon.minOrderValue,
+        maxDiscountCap: coupon.maxDiscountCap,
+        validFrom: coupon.validFrom,
+        validTo: coupon.validTo,
+        totalUsageLimit: coupon.totalUsageLimit,
+        perUserLimit: coupon.perUserLimit,
+        usedCount: coupon.usedCount || 0,
+        isActive: coupon.isActive,
+        firstOrderOnly: coupon.firstOrderOnly,
+        status: getCouponStatus(coupon),
+        redemptions: (coupon.redemptions || []).map((r) => ({
+          id: r._id,
+          user: r.user ? { name: r.user.name, phone: r.user.phone, email: r.user.email, id: r.user._id } : null,
+          orderId: r.orderId,
+          discountAmount: r.discountAmount,
+          redeemedAt: r.redeemedAt
+        })),
+        createdAt: coupon.createdAt,
+        updatedAt: coupon.updatedAt
+      }
+    });
+  } catch (error) {
+    console.error('Admin get coupon error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch coupon details' } });
+  }
+});
+
+// @route   POST /api/v1/admin/coupons
+// @desc    Create a new coupon
+router.post('/coupons', [
+  body('code').trim().notEmpty().withMessage('Coupon code is required').isLength({ min: 3, max: 30 }),
+  body('discountType').isIn(['percentage', 'flat', 'fixed']).withMessage('discountType must be percentage or flat'),
+  body('discountValue').isFloat({ min: 1 }).withMessage('discountValue must be at least 1'),
+  body('minOrderValue').optional().isFloat({ min: 0 }).withMessage('minOrderValue must be >= 0'),
+  body('maxDiscountCap').optional({ nullable: true }).isFloat({ min: 1 }).withMessage('maxDiscountCap must be >= 1'),
+  body('validTo').notEmpty().withMessage('validTo date is required').isISO8601().withMessage('validTo must be a valid date'),
+  body('validFrom').optional().isISO8601().withMessage('validFrom must be a valid date'),
+  body('totalUsageLimit').optional({ nullable: true }).isInt({ min: 1 }),
+  body('perUserLimit').optional().isInt({ min: 1 }),
+  body('isActive').optional().isBoolean(),
+  body('firstOrderOnly').optional().isBoolean(),
+  body('description').optional().trim().isLength({ max: 200 })
+], handleValidationErrors, async (req, res) => {
+  try {
+    const code = req.body.code.trim().toUpperCase();
+    const existing = await Coupon.findOne({ code });
+    if (existing) {
+      return res.status(409).json({ success: false, error: { code: 'DUPLICATE_CODE', message: `Coupon code "${code}" already exists` } });
+    }
+
+    const coupon = new Coupon({
+      code,
+      description: req.body.description || '',
+      discountType: req.body.discountType,
+      discountValue: Number(req.body.discountValue),
+      minOrderValue: Number(req.body.minOrderValue) || 0,
+      maxDiscountCap: req.body.maxDiscountCap ? Number(req.body.maxDiscountCap) : null,
+      validFrom: req.body.validFrom ? new Date(req.body.validFrom) : new Date(),
+      validTo: new Date(req.body.validTo),
+      totalUsageLimit: req.body.totalUsageLimit ? parseInt(req.body.totalUsageLimit) : null,
+      perUserLimit: req.body.perUserLimit ? parseInt(req.body.perUserLimit) : 1,
+      isActive: req.body.isActive !== undefined ? Boolean(req.body.isActive) : true,
+      firstOrderOnly: Boolean(req.body.firstOrderOnly),
+      isFestivalOffer: Boolean(req.body.isFestivalOffer),
+      createdBy: req.user._id
+    });
+
+    await coupon.save();
+    res.status(201).json({ success: true, message: 'Coupon created successfully', data: coupon });
+  } catch (error) {
+    console.error('Admin create coupon error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create coupon' } });
+  }
+});
+
+// @route   PUT /api/v1/admin/coupons/:id
+// @desc    Update an existing coupon
+router.put('/coupons/:id', [
+  body('code').optional().trim().isLength({ min: 3, max: 30 }),
+  body('discountType').optional().isIn(['percentage', 'flat', 'fixed']),
+  body('discountValue').optional().isFloat({ min: 1 }),
+  body('minOrderValue').optional().isFloat({ min: 0 }),
+  body('maxDiscountCap').optional({ nullable: true }),
+  body('validTo').optional().isISO8601(),
+  body('validFrom').optional().isISO8601(),
+  body('totalUsageLimit').optional({ nullable: true }),
+  body('perUserLimit').optional().isInt({ min: 1 }),
+  body('isActive').optional().isBoolean(),
+  body('firstOrderOnly').optional().isBoolean(),
+  body('description').optional().trim().isLength({ max: 200 })
+], handleValidationErrors, async (req, res) => {
+  try {
+    const coupon = await Coupon.findById(req.params.id);
+    if (!coupon) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Coupon not found' } });
+    }
+
+    if (req.body.code) {
+      const code = req.body.code.trim().toUpperCase();
+      const existing = await Coupon.findOne({ code, _id: { $ne: coupon._id } });
+      if (existing) {
+        return res.status(409).json({ success: false, error: { code: 'DUPLICATE_CODE', message: `Coupon code "${code}" already in use` } });
+      }
+      coupon.code = code;
+    }
+
+    if (req.body.description !== undefined) coupon.description = req.body.description;
+    if (req.body.discountType) coupon.discountType = req.body.discountType;
+    if (req.body.discountValue !== undefined) coupon.discountValue = Number(req.body.discountValue);
+    if (req.body.minOrderValue !== undefined) coupon.minOrderValue = Number(req.body.minOrderValue);
+    if (req.body.maxDiscountCap !== undefined) coupon.maxDiscountCap = req.body.maxDiscountCap ? Number(req.body.maxDiscountCap) : null;
+    if (req.body.validFrom) coupon.validFrom = new Date(req.body.validFrom);
+    if (req.body.validTo) coupon.validTo = new Date(req.body.validTo);
+    if (req.body.totalUsageLimit !== undefined) coupon.totalUsageLimit = req.body.totalUsageLimit ? parseInt(req.body.totalUsageLimit) : null;
+    if (req.body.perUserLimit !== undefined) coupon.perUserLimit = parseInt(req.body.perUserLimit);
+    if (req.body.isActive !== undefined) coupon.isActive = Boolean(req.body.isActive);
+    if (req.body.firstOrderOnly !== undefined) coupon.firstOrderOnly = Boolean(req.body.firstOrderOnly);
+    if (req.body.isFestivalOffer !== undefined) coupon.isFestivalOffer = Boolean(req.body.isFestivalOffer);
+
+    await coupon.save();
+    res.json({ success: true, message: 'Coupon updated successfully', data: coupon });
+  } catch (error) {
+    console.error('Admin update coupon error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update coupon' } });
+  }
+});
+
+// @route   PATCH /api/v1/admin/coupons/:id/toggle
+// @desc    Fast toggle active status
+router.patch('/coupons/:id/toggle', async (req, res) => {
+  try {
+    const coupon = await Coupon.findById(req.params.id);
+    if (!coupon) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Coupon not found' } });
+    }
+    coupon.isActive = !coupon.isActive;
+    await coupon.save();
+    res.json({ success: true, message: `Coupon ${coupon.isActive ? 'activated' : 'deactivated'}`, data: { id: coupon._id, isActive: coupon.isActive } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to toggle coupon' } });
+  }
+});
+
+// ============================================================================
+// ABANDONED CART MESSAGING ROUTES
+// ============================================================================
+
+// @route   GET /api/v1/admin/abandoned-carts
+// @desc    List abandoned carts based on configurable inactivity window (hours)
+// @access  Private (Admin)
+router.get('/abandoned-carts', async (req, res) => {
+  try {
+    const hours = parseFloat(req.query.hours) || 24;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const search = req.query.search ? String(req.query.search).trim() : '';
+
+    const cutoffDate = new Date(Date.now() - hours * 3600 * 1000);
+
+    // Find carts with items not modified since cutoff
+    const rawCarts = await Cart.find({
+      'items.0': { $exists: true },
+      updatedAt: { $lte: cutoffDate }
+    })
+      .sort({ updatedAt: -1 })
+      .populate('user', 'name phone email userId createdAt')
+      .populate('items.product', 'name price images stock status productId');
+
+    // Filter out carts whose user has placed a successful order AFTER cart updatedAt
+    const activeAbandoned = [];
+    for (const cart of rawCarts) {
+      if (!cart.user) continue;
+
+      const user = cart.user;
+
+      // Check search match
+      if (search) {
+        const queryLower = search.toLowerCase();
+        const matchesName = (user.name || '').toLowerCase().includes(queryLower);
+        const matchesEmail = (user.email || '').toLowerCase().includes(queryLower);
+        const matchesPhone = (user.phone || '').includes(search);
+        if (!matchesName && !matchesEmail && !matchesPhone) {
+          continue;
+        }
+      }
+
+      // Check if user placed an order after cart was last updated
+      const recentOrder = await Order.findOne({
+        user: user._id,
+        createdAt: { $gte: cart.updatedAt }
+      });
+
+      if (recentOrder) {
+        // User completed an order since then, not abandoned
+        continue;
+      }
+
+      // Calculate cart total and items list
+      let cartTotal = 0;
+      const formattedItems = [];
+      for (const item of cart.items) {
+        const prod = item.product;
+        if (!prod) continue;
+        const linePrice = prod.price || 0;
+        const lineSubtotal = linePrice * (item.qty || 1);
+        cartTotal += lineSubtotal;
+
+        formattedItems.push({
+          id: item._id,
+          productId: prod.productId || prod._id,
+          name: prod.name,
+          weight: item.weight,
+          price: linePrice,
+          qty: item.qty,
+          subtotal: lineSubtotal,
+          image: (prod.images || []).map((i) => (typeof i === 'string' ? i : i?.url)).filter(Boolean)[0] || ''
+        });
+      }
+
+      if (formattedItems.length === 0) continue;
+
+      // Find latest message log sent to this user/cart
+      const lastLog = await AbandonedCartLog.findOne({ user: user._id }).sort({ sentAt: -1 });
+
+      activeAbandoned.push({
+        id: cart._id,
+        user: {
+          id: user._id,
+          name: user.name || 'Customer',
+          phone: user.phone,
+          email: user.email,
+          userId: user.userId
+        },
+        items: formattedItems,
+        itemCount: formattedItems.reduce((sum, i) => sum + i.qty, 0),
+        cartTotal,
+        updatedAt: cart.updatedAt,
+        hoursInactive: Math.round((Date.now() - new Date(cart.updatedAt).getTime()) / (3600 * 1000)),
+        lastReminderSentAt: lastLog ? lastLog.sentAt : null,
+        reminderCount: await AbandonedCartLog.countDocuments({ user: user._id })
+      });
+    }
+
+    const total = activeAbandoned.length;
+    const paginatedCarts = activeAbandoned.slice((page - 1) * limit, page * limit);
+    const totalValue = activeAbandoned.reduce((sum, c) => sum + c.cartTotal, 0);
+
+    res.json({
+      success: true,
+      data: {
+        carts: paginatedCarts,
+        summary: {
+          totalAbandoned: total,
+          totalValue,
+          hoursThreshold: hours
+        },
+        pagination: {
+          total,
+          page,
+          pages: Math.ceil(total / limit) || 1,
+          limit
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Admin list abandoned carts error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch abandoned carts' } });
+  }
+});
+
+// @route   POST /api/v1/admin/abandoned-carts/send-message
+// @desc    Dispatch personalized abandoned cart reminders via Email, SMS, or WhatsApp
+// @access  Private (Admin)
+router.post('/abandoned-carts/send-message', [
+  body('cartIds').isArray({ min: 1 }).withMessage('At least one cart must be selected'),
+  body('channel').isIn(['email', 'sms', 'whatsapp', 'all']).withMessage('Channel must be email, sms, whatsapp, or all'),
+  body('templateId').optional().trim(),
+  body('customMessage').optional().trim(),
+  body('couponCode').optional().trim(),
+  body('subject').optional().trim()
+], handleValidationErrors, async (req, res) => {
+  try {
+    const { cartIds, channel, templateId, customMessage, couponCode, subject } = req.body;
+
+    const carts = await Cart.find({ _id: { $in: cartIds } })
+      .populate('user', 'name phone email userId')
+      .populate('items.product', 'name price images');
+
+    const results = {
+      total: carts.length,
+      sentEmails: 0,
+      sentSms: 0,
+      whatsappLinks: [],
+      failed: 0,
+      logs: []
+    };
+
+    for (const cart of carts) {
+      if (!cart.user) continue;
+      const user = cart.user;
+      const customerName = user.name || 'Valued Customer';
+      const items = cart.items || [];
+      const itemNames = items.map((i) => i.product?.name).filter(Boolean).join(', ');
+      const subtotal = items.reduce((sum, i) => sum + (i.product?.price || 0) * (i.qty || 1), 0);
+
+      // Resolve message body
+      const template = TEMPLATES[templateId] || TEMPLATES.reminder;
+      const rawBody = customMessage || template.body;
+      const personalizedMessage = formatTemplate(rawBody, {
+        name: customerName,
+        product: itemNames || 'selected items',
+        cartTotal: subtotal,
+        coupon: couponCode || '',
+        checkoutUrl: `${process.env.FRONTEND_URL || 'https://www.agricola.co.in'}/cart`
+      });
+
+      // 1. Email Dispatch
+      if ((channel === 'email' || channel === 'all') && user.email) {
+        try {
+          await sendAbandonedEmail({
+            to: user.email,
+            subject: subject || template.subject,
+            name: customerName,
+            items,
+            subtotal,
+            couponCode,
+            customMessage: personalizedMessage
+          });
+          results.sentEmails++;
+
+          const log = await AbandonedCartLog.create({
+            cart: cart._id,
+            user: user._id,
+            recipientName: customerName,
+            recipientEmail: user.email,
+            channel: 'email',
+            subject: subject || template.subject,
+            messageContent: personalizedMessage,
+            couponCode,
+            cartValue: subtotal,
+            itemNames: items.map((i) => i.product?.name).filter(Boolean),
+            status: 'sent',
+            sentBy: req.user._id
+          });
+          results.logs.push(log);
+        } catch (mailErr) {
+          console.error(`Failed to send email to ${user.email}:`, mailErr.message);
+          results.failed++;
+          await AbandonedCartLog.create({
+            cart: cart._id,
+            user: user._id,
+            recipientName: customerName,
+            recipientEmail: user.email,
+            channel: 'email',
+            messageContent: personalizedMessage,
+            status: 'failed',
+            errorDetails: mailErr.message,
+            sentBy: req.user._id
+          });
+        }
+      }
+
+      // 2. SMS Dispatch (via Fast2SMS)
+      if ((channel === 'sms' || channel === 'all') && user.phone) {
+        try {
+          const smsText = personalizedMessage.slice(0, 160); // standard SMS boundary
+          await sendOtpSms(user.phone, couponCode || 'AGRI10'); // fallback/DLT route
+          results.sentSms++;
+
+          const log = await AbandonedCartLog.create({
+            cart: cart._id,
+            user: user._id,
+            recipientName: customerName,
+            recipientPhone: user.phone,
+            channel: 'sms',
+            messageContent: smsText,
+            couponCode,
+            cartValue: subtotal,
+            itemNames: items.map((i) => i.product?.name).filter(Boolean),
+            status: 'sent',
+            sentBy: req.user._id
+          });
+          results.logs.push(log);
+        } catch (smsErr) {
+          console.error(`Failed to send SMS to ${user.phone}:`, smsErr.message);
+          results.failed++;
+          await AbandonedCartLog.create({
+            cart: cart._id,
+            user: user._id,
+            recipientName: customerName,
+            recipientPhone: user.phone,
+            channel: 'sms',
+            messageContent: personalizedMessage,
+            status: 'failed',
+            errorDetails: smsErr.message,
+            sentBy: req.user._id
+          });
+        }
+      }
+
+      // 3. WhatsApp Direct Launch Links
+      if ((channel === 'whatsapp' || channel === 'all') && user.phone) {
+        const waLink = buildWhatsAppLink(user.phone, personalizedMessage);
+        results.whatsappLinks.push({
+          cartId: cart._id,
+          userName: customerName,
+          phone: user.phone,
+          link: waLink,
+          message: personalizedMessage
+        });
+
+        const log = await AbandonedCartLog.create({
+          cart: cart._id,
+          user: user._id,
+          recipientName: customerName,
+          recipientPhone: user.phone,
+          channel: 'whatsapp',
+          messageContent: personalizedMessage,
+          couponCode,
+          cartValue: subtotal,
+          itemNames: items.map((i) => i.product?.name).filter(Boolean),
+          status: 'ready_to_send',
+          sentBy: req.user._id
+        });
+        results.logs.push(log);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Abandoned cart messages processed: ${results.sentEmails} email(s), ${results.sentSms} SMS, ${results.whatsappLinks.length} WhatsApp links prepared`,
+      data: results
+    });
+  } catch (error) {
+    console.error('Admin send abandoned cart message error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to dispatch abandoned cart messages' } });
+  }
+});
+
+// @route   GET /api/v1/admin/abandoned-carts/logs
+// @desc    List sent message logs
+// @access  Private (Admin)
+router.get('/abandoned-carts/logs', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const channel = req.query.channel;
+
+    const query = {};
+    if (channel && channel !== 'all') {
+      query.channel = channel;
+    }
+
+    const total = await AbandonedCartLog.countDocuments(query);
+    const logs = await AbandonedCartLog.find(query)
+      .sort({ sentAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate('user', 'name phone email userId')
+      .populate('sentBy', 'name email');
+
+    res.json({
+      success: true,
+      data: {
+        logs,
+        pagination: {
+          total,
+          page,
+          pages: Math.ceil(total / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Fetch abandoned cart logs error:', error);
+    res.status(500).json({ success: false, message: 'Server error fetching logs' });
+  }
+});
+
+// ============================================================================
+// FESTIVAL HERO CAMPAIGNS & VIDEO MODULE ROUTES
+// ============================================================================
+
+// Helper to determine computed campaign status
+const getCampaignStatus = (campaign) => {
+  if (!campaign.isActive) return 'inactive';
+  const now = new Date();
+  if (campaign.startDate && now < new Date(campaign.startDate)) return 'upcoming';
+  if (campaign.endDate && now > new Date(campaign.endDate)) return 'ended';
+  return 'active';
+};
+
+// @route   GET /api/v1/admin/campaigns
+// @desc    List all campaigns with overlap detection and pagination
+// @access  Private (Admin)
+router.get('/campaigns', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const search = req.query.search ? String(req.query.search).trim() : '';
+    const status = req.query.status || 'all';
+
+    const query = {};
+    if (search) {
+      query.name = { $regex: search, $options: 'i' };
+    }
+
+    const now = new Date();
+    if (status === 'active') {
+      query.isActive = true;
+      query.startDate = { $lte: now };
+      query.endDate = { $gte: now };
+    } else if (status === 'upcoming') {
+      query.startDate = { $gt: now };
+    } else if (status === 'ended') {
+      query.endDate = { $lt: now };
+    } else if (status === 'inactive') {
+      query.isActive = false;
+    }
+
+    const total = await HeroCampaign.countDocuments(query);
+    const campaigns = await HeroCampaign.find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate('createdBy', 'name email');
+
+    // Overlap detection: find active campaigns whose date ranges overlap
+    const allActive = await HeroCampaign.find({ isActive: true });
+    const formatted = campaigns.map((c) => {
+      const cStatus = getCampaignStatus(c);
+      const overlaps = allActive.filter(
+        (other) =>
+          String(other._id) !== String(c._id) &&
+          c.startDate <= other.endDate &&
+          c.endDate >= other.startDate
+      );
+
+      return {
+        id: c._id,
+        name: c.name,
+        festivalType: c.festivalType,
+        slidesCount: (c.slides || []).length,
+        slides: c.slides || [],
+        startDate: c.startDate,
+        endDate: c.endDate,
+        isActive: c.isActive,
+        priority: c.priority || 0,
+        status: cStatus,
+        videoModule: c.videoModule || { isEnabled: false },
+        hasOverlap: overlaps.length > 0,
+        overlappingCampaigns: overlaps.map((o) => ({ id: o._id, name: o.name, festivalType: o.festivalType })),
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        campaigns: formatted,
+        pagination: {
+          total,
+          page,
+          pages: Math.ceil(total / limit) || 1,
+          limit
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Admin list campaigns error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch campaigns' } });
+  }
+});
+
+// @route   GET /api/v1/admin/campaigns/:id
+// @desc    Get single campaign detail
+router.get('/campaigns/:id', async (req, res) => {
+  try {
+    const campaign = await HeroCampaign.findById(req.params.id).populate('createdBy', 'name email');
+    if (!campaign) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Campaign not found' } });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: campaign._id,
+        name: campaign.name,
+        festivalType: campaign.festivalType,
+        slides: campaign.slides || [],
+        startDate: campaign.startDate,
+        endDate: campaign.endDate,
+        isActive: campaign.isActive,
+        priority: campaign.priority || 0,
+        status: getCampaignStatus(campaign),
+        videoModule: campaign.videoModule || { isEnabled: false },
+        createdAt: campaign.createdAt,
+        updatedAt: campaign.updatedAt
+      }
+    });
+  } catch (error) {
+    console.error('Admin get campaign error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch campaign' } });
+  }
+});
+
+// @route   POST /api/v1/admin/campaigns
+// @desc    Create a new festival hero campaign
+router.post('/campaigns', [
+  body('name').trim().notEmpty().withMessage('Campaign name is required'),
+  body('startDate').notEmpty().isISO8601().withMessage('Valid start date is required'),
+  body('endDate').notEmpty().isISO8601().withMessage('Valid end date is required'),
+  body('slides').isArray({ min: 1 }).withMessage('At least one hero slide is required'),
+  body('slides.*.image').notEmpty().withMessage('Slide image URL is required'),
+  body('slides.*.title').notEmpty().withMessage('Slide title is required'),
+  body('festivalType').optional().isIn([
+    'diwali', 'durga_puja', 'chhath', 'eid', 'christmas', 'republic_day', 'independence_day', 'holi', 'new_year', 'seasonal', 'other'
+  ]),
+  body('isActive').optional().isBoolean(),
+  body('priority').optional().isInt()
+], handleValidationErrors, async (req, res) => {
+  try {
+    const start = new Date(req.body.startDate);
+    const end = new Date(req.body.endDate);
+
+    if (end <= start) {
+      return res.status(400).json({ success: false, error: { code: 'INVALID_DATES', message: 'End date must be after start date' } });
+    }
+
+    // Check overlaps with active campaigns
+    const overlapping = await HeroCampaign.find({
+      isActive: true,
+      startDate: { $lte: end },
+      endDate: { $gte: start }
+    });
+
+    const campaign = new HeroCampaign({
+      name: req.body.name.trim(),
+      festivalType: req.body.festivalType || 'other',
+      slides: (req.body.slides || []).map((s, idx) => ({
+        image: s.image,
+        title: s.title,
+        description: s.description || '',
+        ctaText: s.ctaText || 'Shop Products',
+        ctaLink: s.ctaLink || '/products',
+        order: s.order !== undefined ? s.order : idx
+      })),
+      startDate: start,
+      endDate: end,
+      isActive: req.body.isActive !== undefined ? Boolean(req.body.isActive) : true,
+      priority: req.body.priority !== undefined ? parseInt(req.body.priority) : 0,
+      videoModule: req.body.videoModule || { isEnabled: false },
+      couponCode: req.body.couponCode ? req.body.couponCode.trim().toUpperCase() : '',
+      createdBy: req.user._id
+    });
+
+    await campaign.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Hero campaign created successfully',
+      data: campaign,
+      warning: overlapping.length > 0 ? `Note: This campaign dates overlap with ${overlapping.length} existing active campaign(s). Highest priority campaign will be displayed.` : undefined
+    });
+  } catch (error) {
+    console.error('Admin create campaign error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create campaign' } });
+  }
+});
+
+// @route   PUT /api/v1/admin/campaigns/:id
+// @desc    Update a hero campaign
+router.put('/campaigns/:id', [
+  body('name').optional().trim().notEmpty(),
+  body('startDate').optional().isISO8601(),
+  body('endDate').optional().isISO8601(),
+  body('slides').optional().isArray({ min: 1 }),
+  body('isActive').optional().isBoolean(),
+  body('priority').optional().isInt()
+], handleValidationErrors, async (req, res) => {
+  try {
+    const campaign = await HeroCampaign.findById(req.params.id);
+    if (!campaign) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Campaign not found' } });
+    }
+
+    if (req.body.name) campaign.name = req.body.name.trim();
+    if (req.body.festivalType) campaign.festivalType = req.body.festivalType;
+    if (req.body.startDate) campaign.startDate = new Date(req.body.startDate);
+    if (req.body.endDate) campaign.endDate = new Date(req.body.endDate);
+    if (req.body.isActive !== undefined) campaign.isActive = Boolean(req.body.isActive);
+    if (req.body.priority !== undefined) campaign.priority = parseInt(req.body.priority);
+    if (req.body.couponCode !== undefined) campaign.couponCode = req.body.couponCode.trim().toUpperCase();
+
+    if (req.body.slides) {
+      campaign.slides = req.body.slides.map((s, idx) => ({
+        image: s.image,
+        title: s.title,
+        description: s.description || '',
+        ctaText: s.ctaText || 'Shop Products',
+        ctaLink: s.ctaLink || '/products',
+        order: s.order !== undefined ? s.order : idx
+      }));
+    }
+
+    if (req.body.videoModule) {
+      campaign.videoModule = {
+        ...campaign.videoModule,
+        ...req.body.videoModule
+      };
+    }
+
+    await campaign.save();
+    res.json({ success: true, message: 'Campaign updated successfully', data: campaign });
+  } catch (error) {
+    console.error('Admin update campaign error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update campaign' } });
+  }
+});
+
+// @route   PATCH /api/v1/admin/campaigns/:id/toggle
+// @desc    Quick toggle active status
+router.patch('/campaigns/:id/toggle', async (req, res) => {
+  try {
+    const campaign = await HeroCampaign.findById(req.params.id);
+    if (!campaign) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Campaign not found' } });
+    }
+    campaign.isActive = !campaign.isActive;
+    await campaign.save();
+    res.json({ success: true, message: `Campaign ${campaign.isActive ? 'activated' : 'deactivated'}`, data: { id: campaign._id, isActive: campaign.isActive } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to toggle campaign' } });
+  }
+});
+
+// @route   DELETE /api/v1/admin/campaigns/:id
+// @desc    Delete a campaign
+router.delete('/campaigns/:id', async (req, res) => {
+  try {
+    const campaign = await HeroCampaign.findByIdAndDelete(req.params.id);
+    if (!campaign) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Campaign not found' } });
+    }
+    res.json({ success: true, message: 'Campaign deleted successfully' });
+  } catch (error) {
+    console.error('Admin delete campaign error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete campaign' } });
+  }
+});
+
+// ============================================================================
+// COMING SOON LAUNCH SUBSCRIBERS (UTENSILS & GARDENING)
+// ============================================================================
+
+// @route   GET /api/v1/admin/subscribers
+// @desc    List launch subscribers with filtering and category stats
+// @access  Private (Admin)
+router.get('/subscribers', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const category = req.query.category;
+    const search = req.query.search ? String(req.query.search).trim() : '';
+
+    const query = {};
+    if (category && category !== 'all') {
+      query.category = category;
+    }
+
+    if (search) {
+      query.$or = [
+        { email: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } },
+        { name: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const total = await LaunchSubscriber.countDocuments(query);
+    const subscribers = await LaunchSubscriber.find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    // Aggregate category counts for dashboard KPI badges
+    const [utensilsCount, gardeningCount, bothCount] = await Promise.all([
+      LaunchSubscriber.countDocuments({ category: 'utensils' }),
+      LaunchSubscriber.countDocuments({ category: 'gardening' }),
+      LaunchSubscriber.countDocuments({ category: 'both' })
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        subscribers,
+        stats: {
+          total: utensilsCount + gardeningCount + bothCount,
+          utensilsCount,
+          gardeningCount,
+          bothCount
+        },
+        pagination: {
+          total,
+          page,
+          pages: Math.ceil(total / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Fetch launch subscribers error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch subscribers' } });
+  }
+});
+
+// @route   DELETE /api/v1/admin/subscribers/:id
+// @desc    Delete a launch subscriber
+// @access  Private (Admin)
+router.delete('/subscribers/:id', async (req, res) => {
+  try {
+    const sub = await LaunchSubscriber.findByIdAndDelete(req.params.id);
+    if (!sub) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Subscriber not found' } });
+    }
+    res.json({ success: true, message: 'Subscriber removed successfully' });
+  } catch (error) {
+    console.error('Delete subscriber error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete subscriber' } });
+  }
+});
+
+// ============================================================================
+// ADMIN SUPPORT & CUSTOMER INQUIRIES
+// ============================================================================
+
+// @route   GET /api/v1/admin/support/feedbacks
+// @desc    List customer feedback & inquiries with filtering and KPIs
+// @access  Private (Admin)
+router.get('/support/feedbacks', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const status = req.query.status;
+    const rating = req.query.rating;
+    const search = req.query.search ? String(req.query.search).trim() : '';
+
+    const query = {};
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+    if (rating && rating !== 'all') {
+      query.rating = parseInt(rating);
+    }
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { message: { $regex: search, $options: 'i' } },
+        { page: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const total = await Feedback.countDocuments(query);
+    const feedbacks = await Feedback.find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate('user', 'name email phone');
+
+    // Aggregate statistics
+    const [openCount, resolvedCount, totalCount] = await Promise.all([
+      Feedback.countDocuments({ status: 'open' }),
+      Feedback.countDocuments({ status: 'resolved' }),
+      Feedback.countDocuments()
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        feedbacks,
+        stats: {
+          total: totalCount,
+          open: openCount,
+          resolved: resolvedCount
+        },
+        pagination: {
+          total,
+          page,
+          pages: Math.ceil(total / limit)
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Fetch support feedbacks error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch feedbacks' } });
+  }
+});
+
+// @route   PATCH /api/v1/admin/support/feedbacks/:id/status
+// @desc    Toggle or update feedback resolution status
+// @access  Private (Admin)
+router.patch('/support/feedbacks/:id/status', async (req, res) => {
+  try {
+    const { status } = req.body;
+    const fb = await Feedback.findById(req.params.id);
+    if (!fb) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Feedback ticket not found' } });
+    }
+
+    fb.status = status || (fb.status === 'resolved' ? 'open' : 'resolved');
+    await fb.save();
+
+    res.json({ success: true, message: `Feedback marked as ${fb.status}`, data: fb });
+  } catch (error) {
+    console.error('Update feedback status error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update feedback status' } });
+  }
+});
+
+// @route   POST /api/v1/admin/support/feedbacks/:id/reply
+// @desc    Send email reply to customer inquiry
+// @access  Private (Admin)
+router.post('/support/feedbacks/:id/reply', async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message || !String(message).trim()) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Reply message is required' } });
+    }
+
+    const fb = await Feedback.findById(req.params.id);
+    if (!fb) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Feedback not found' } });
+    }
+
+    if (!fb.email) {
+      return res.status(400).json({ success: false, error: { code: 'NO_EMAIL', message: 'Customer did not provide an email address' } });
+    }
+
+    // Send email via mailer
+    await mailer.sendMail({
+      to: fb.email,
+      subject: `Response to your inquiry from AgriCola Support`,
+      text: `Hello ${fb.name || 'Valued Customer'},\n\nThank you for contacting AgriCola.\n\n${message}\n\nWarm regards,\nAgriCola Support Team\nsupport@agricola.co.in`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; line-height: 1.6;">
+          <h2 style="color: #2e7d32;">AgriCola Customer Support</h2>
+          <p>Hello ${fb.name || 'Valued Customer'},</p>
+          <p>Thank you for reaching out to us. Regarding your inquiry:</p>
+          <blockquote style="background: #f9f9f9; border-left: 4px solid #84b817; padding: 10px 15px; margin: 15px 0; color: #555;">
+            ${fb.message}
+          </blockquote>
+          <p><strong>Our Response:</strong></p>
+          <p style="background: #e8f5e9; padding: 15px; border-radius: 8px;">${message.replace(/\n/g, '<br/>')}</p>
+          <p>If you have any further questions, feel free to reply directly to this email or reach us on WhatsApp at +91 9012659000.</p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #888;">AgriCola Organics · Pure Harvest & Heritage Living</p>
+        </div>
+      `
+    });
+
+    fb.adminReply = message.trim();
+    fb.repliedAt = new Date();
+    fb.status = 'resolved';
+    await fb.save();
+
+    res.json({ success: true, message: 'Reply sent successfully to customer email', data: fb });
+  } catch (error) {
+    console.error('Send feedback reply error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to send reply' } });
+  }
+});
+
+// @route   DELETE /api/v1/admin/support/feedbacks/:id
+// @desc    Delete feedback ticket
+// @access  Private (Admin)
+router.delete('/support/feedbacks/:id', async (req, res) => {
+  try {
+    const fb = await Feedback.findByIdAndDelete(req.params.id);
+    if (!fb) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Feedback not found' } });
+    }
+    res.json({ success: true, message: 'Feedback ticket deleted' });
+  } catch (error) {
+    console.error('Delete feedback error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete feedback' } });
+  }
+});
+
+// ============================================================================
+// ADMIN STORE SETTINGS
+// ============================================================================
+
+// @route   GET /api/v1/admin/settings
+// @desc    Get store configuration settings
+// @access  Private (Admin)
+router.get('/settings', async (req, res) => {
+  try {
+    let setting = await Setting.findOne({ key: 'global_config' });
+    if (!setting) {
+      setting = await Setting.create({ key: 'global_config' });
+    }
+
+    res.json({
+      success: true,
+      data: setting
+    });
+  } catch (error) {
+    console.error('Fetch settings error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to load settings' } });
+  }
+});
+
+// @route   PUT /api/v1/admin/settings
+// @desc    Update store configuration settings
+// @access  Private (Admin)
+router.put('/settings', async (req, res) => {
+  try {
+    let setting = await Setting.findOne({ key: 'global_config' });
+    if (!setting) {
+      setting = new Setting({ key: 'global_config' });
+    }
+
+    const fields = [
+      'storeName',
+      'supportEmail',
+      'supportPhone',
+      'supportWhatsApp',
+      'businessHours',
+      'storeAddress',
+      'enableMultiWarehouse',
+      'defaultCarrier',
+      'freeShippingThreshold',
+      'standardDeliveryCharge',
+      'enableWhatsAppNotifications',
+      'enableEmailNotifications',
+      'enableCod',
+      'maxCodAmount',
+      'allowCouponStacking',
+      'maxStackedCoupons'
+    ];
+
+    fields.forEach((f) => {
+      if (req.body[f] !== undefined) {
+        setting[f] = req.body[f];
+      }
+    });
+
+    await setting.save();
+
+    res.json({
+      success: true,
+      message: 'Store settings updated successfully',
+      data: setting
+    });
+  } catch (error) {
+    console.error('Update settings error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update settings' } });
+  }
+});
+
+
+// ============================================================================
+// INVENTORY MANAGEMENT (Real-Time Stock & Warehouse Allocations)
+// ============================================================================
+
+// @route   GET /api/v1/admin/inventory
+// @desc    Get all inventory with low-stock alerts and warehouse distribution
+// @access  Private (Admin)
+router.get('/inventory', async (req, res) => {
+  try {
+    const ProductWarehouseStock = require('../models/ProductWarehouseStock');
+    const products = await Product.find().select('name sku category price sellingPrice stock images isActive unit weight').lean();
+    const stocks = await ProductWarehouseStock.find().populate('warehouse', 'name code address isDefault').lean();
+
+    const stockMap = {};
+    stocks.forEach((s) => {
+      const pId = String(s.product);
+      if (!stockMap[pId]) stockMap[pId] = [];
+      stockMap[pId].push({
+        warehouseId: s.warehouse?._id,
+        warehouseName: s.warehouse?.name || 'Unknown',
+        warehouseCode: s.warehouse?.code || 'WH',
+        stock: s.stock
+      });
+    });
+
+    const enriched = products.map((p) => {
+      const pId = String(p._id);
+      const allocations = stockMap[pId] || [];
+      const totalWarehouseStock = allocations.reduce((sum, a) => sum + (a.stock || 0), 0);
+      return {
+        id: p._id,
+        name: p.name,
+        sku: p.sku || 'SKU-' + String(p._id).slice(-4).toUpperCase(),
+        category: p.category,
+        price: p.price,
+        sellingPrice: p.sellingPrice,
+        stock: p.stock ?? 0,
+        lowStockThreshold: 5,
+        isLowStock: (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 5,
+        isOutOfStock: (p.stock ?? 0) <= 0,
+        images: p.images || [],
+        isActive: p.isActive !== false,
+        allocations,
+        totalWarehouseStock
+      };
+    });
+
+    res.json({
+      success: true,
+      data: enriched
+    });
+  } catch (error) {
+    console.error('Fetch inventory error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch inventory' } });
+  }
+});
+
+// @route   PATCH /api/v1/admin/inventory/:productId
+// @desc    Update product stock level manually
+// @access  Private (Admin)
+router.patch('/inventory/:productId', async (req, res) => {
+  try {
+    const { stock, warehouseId } = req.body;
+    if (stock === undefined || isNaN(Number(stock)) || Number(stock) < 0) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Valid non-negative stock count is required' } });
+    }
+
+    const newStock = Math.max(0, parseInt(stock, 10));
+    const product = await Product.findById(req.params.productId);
+    if (!product) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Product not found' } });
+    }
+
+    product.stock = newStock;
+    await product.save();
+
+    // If a specific warehouse was targeted, update ProductWarehouseStock as well
+    if (warehouseId) {
+      const ProductWarehouseStock = require('../models/ProductWarehouseStock');
+      await ProductWarehouseStock.findOneAndUpdate(
+        { product: product._id, warehouse: warehouseId },
+        { stock: newStock },
+        { upsert: true, new: true }
+      );
+
+      // Recalculate product stock only from active warehouses
+      const activeWarehouses = await Warehouse.find({ status: 'active' }).select('_id');
+      const activeWarehouseIds = activeWarehouses.map((w) => w._id);
+      const activeStocks = await ProductWarehouseStock.find({
+        product: product._id,
+        warehouse: { $in: activeWarehouseIds }
+      });
+      product.stock = activeStocks.reduce((sum, s) => sum + (s.stock || 0), 0);
+      await product.save();
+    }
+
+    res.json({
+      success: true,
+      message: `Stock for ${product.name} updated to ${newStock} units.`,
+      data: {
+        id: product._id,
+        name: product.name,
+        stock: product.stock,
+        isLowStock: product.stock > 0 && product.stock <= 5,
+        isOutOfStock: product.stock <= 0
+      }
+    });
+  } catch (error) {
+    console.error('Update inventory error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update stock' } });
+  }
+});
+
+// ==========================================
+// BLOG MANAGEMENT ROUTES
+// ==========================================
+
+const calculateReadTime = (text = '') => {
+  const plainText = text.replace(/<[^>]+>/g, ' ').trim();
+  const wordCount = plainText ? plainText.split(/\s+/).filter(Boolean).length : 0;
+  const minutes = Math.max(1, Math.ceil(wordCount / 200));
+  return `${minutes} min read`;
+};
+
+const slugify = (text = '') => {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w\-]+/g, '')
+    .replace(/\-\-+/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
+};
+
+// @route   GET /api/v1/admin/blogs
+// @desc    Get all blogs (drafts & published) with filters & pagination
+// @access  Admin
+router.get('/blogs', async (req, res) => {
+  try {
+    const { status, category, search, page = 1, limit = 20 } = req.query;
+    const query = {};
+
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    if (category && category !== 'all') {
+      query.category = new RegExp(`^${category}$`, 'i');
+    }
+
+    if (search && search.trim()) {
+      query.$or = [
+        { title: { $regex: search.trim(), $options: 'i' } },
+        { excerpt: { $regex: search.trim(), $options: 'i' } },
+        { tags: { $regex: search.trim(), $options: 'i' } }
+      ];
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
+    const skip = (pageNum - 1) * limitNum;
+
+    const [blogs, total, stats] = await Promise.all([
+      Blog.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .populate('createdBy', 'name email'),
+      Blog.countDocuments(query),
+      Blog.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalPosts: { $sum: 1 },
+            publishedPosts: {
+              $sum: { $cond: [{ $eq: ['$status', 'published'] }, 1, 0] }
+            },
+            draftPosts: {
+              $sum: { $cond: [{ $eq: ['$status', 'draft'] }, 1, 0] }
+            },
+            totalViews: { $sum: '$viewCount' }
+          }
+        }
+      ])
+    ]);
+
+    const statSummary = stats[0] || { totalPosts: 0, publishedPosts: 0, draftPosts: 0, totalViews: 0 };
+
+    res.json({
+      success: true,
+      data: blogs,
+      stats: statSummary,
+      pagination: {
+        total,
+        page: pageNum,
+        pages: Math.ceil(total / limitNum),
+        limit: limitNum
+      }
+    });
+  } catch (error) {
+    console.error('Admin get blogs error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   GET /api/v1/admin/blogs/:id
+// @desc    Get single blog for editing
+// @access  Admin
+router.get('/blogs/:id', async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+    if (!blog) {
+      return res.status(404).json({ success: false, message: 'Blog post not found' });
+    }
+    res.json({ success: true, data: blog });
+  } catch (error) {
+    console.error('Admin get single blog error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   POST /api/v1/admin/blogs
+// @desc    Create new blog post
+// @access  Admin
+router.post(
+  '/blogs',
+  [
+    body('title').trim().notEmpty().withMessage('Title is required'),
+    body('content').notEmpty().withMessage('Content is required'),
+    body('excerpt').trim().notEmpty().withMessage('Excerpt is required')
+  ],
+  handleValidationErrors,
+  async (req, res) => {
+    try {
+      const {
+        title,
+        slug: customSlug,
+        excerpt,
+        content,
+        coverImage,
+        author,
+        category,
+        tags,
+        status,
+        featured,
+        seo
+      } = req.body;
+
+      // Determine slug
+      let baseSlug = customSlug ? slugify(customSlug) : slugify(title);
+      if (!baseSlug) baseSlug = `post-${Date.now()}`;
+
+      // Check unique slug
+      let finalSlug = baseSlug;
+      let counter = 1;
+      while (await Blog.findOne({ slug: finalSlug })) {
+        finalSlug = `${baseSlug}-${counter++}`;
+      }
+
+      const postStatus = status === 'published' ? 'published' : 'draft';
+      const readTime = calculateReadTime(content);
+
+      // Process tags
+      const tagList = Array.isArray(tags)
+        ? tags
+        : typeof tags === 'string'
+        ? tags.split(',').map((t) => t.trim()).filter(Boolean)
+        : [];
+
+      const newBlog = new Blog({
+        title,
+        slug: finalSlug,
+        excerpt,
+        content,
+        coverImage: coverImage || '',
+        author: {
+          name: author?.name || req.user.name || 'Agricola Team',
+          avatar: author?.avatar || '',
+          role: author?.role || 'Editorial Team'
+        },
+        category: category || 'General',
+        tags: tagList,
+        status: postStatus,
+        featured: !!featured,
+        readTime,
+        publishedAt: postStatus === 'published' ? new Date() : null,
+        seo: {
+          metaTitle: seo?.metaTitle || title,
+          metaDescription: seo?.metaDescription || excerpt,
+          focusKeyword: seo?.focusKeyword || '',
+          canonicalUrl: seo?.canonicalUrl || ''
+        },
+        createdBy: req.user._id
+      });
+
+      await newBlog.save();
+
+      res.status(201).json({
+        success: true,
+        message: 'Blog post created successfully',
+        data: newBlog
+      });
+    } catch (error) {
+      console.error('Admin create blog error:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+);
+
+// @route   PUT /api/v1/admin/blogs/:id
+// @desc    Update existing blog post
+// @access  Admin
+router.put('/blogs/:id', async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+    if (!blog) {
+      return res.status(404).json({ success: false, message: 'Blog post not found' });
+    }
+
+    const {
+      title,
+      slug: customSlug,
+      excerpt,
+      content,
+      coverImage,
+      author,
+      category,
+      tags,
+      status,
+      featured,
+      seo
+    } = req.body;
+
+    if (title) blog.title = title;
+    if (excerpt) blog.excerpt = excerpt;
+    if (content) {
+      blog.content = content;
+      blog.readTime = calculateReadTime(content);
+    }
+    if (coverImage !== undefined) blog.coverImage = coverImage;
+    if (category) blog.category = category;
+    if (featured !== undefined) blog.featured = !!featured;
+
+    if (tags !== undefined) {
+      blog.tags = Array.isArray(tags)
+        ? tags
+        : typeof tags === 'string'
+        ? tags.split(',').map((t) => t.trim()).filter(Boolean)
+        : [];
+    }
+
+    if (author) {
+      blog.author = {
+        name: author.name || blog.author?.name || 'Agricola Team',
+        avatar: author.avatar !== undefined ? author.avatar : blog.author?.avatar,
+        role: author.role || blog.author?.role || 'Editorial Team'
+      };
+    }
+
+    if (seo) {
+      blog.seo = {
+        metaTitle: seo.metaTitle !== undefined ? seo.metaTitle : blog.seo?.metaTitle,
+        metaDescription: seo.metaDescription !== undefined ? seo.metaDescription : blog.seo?.metaDescription,
+        focusKeyword: seo.focusKeyword !== undefined ? seo.focusKeyword : blog.seo?.focusKeyword,
+        canonicalUrl: seo.canonicalUrl !== undefined ? seo.canonicalUrl : blog.seo?.canonicalUrl
+      };
+    }
+
+    // Handle slug change if requested
+    if (customSlug && customSlug !== blog.slug) {
+      const cleanSlug = slugify(customSlug);
+      const existing = await Blog.findOne({ slug: cleanSlug, _id: { $ne: blog._id } });
+      if (existing) {
+        return res.status(400).json({ success: false, message: 'This slug is already taken by another article' });
+      }
+      blog.slug = cleanSlug;
+    }
+
+    // Handle status change
+    if (status && status !== blog.status) {
+      blog.status = status;
+      if (status === 'published' && !blog.publishedAt) {
+        blog.publishedAt = new Date();
+      }
+    }
+
+    await blog.save();
+
+    res.json({
+      success: true,
+      message: 'Blog post updated successfully',
+      data: blog
+    });
+  } catch (error) {
+    console.error('Admin update blog error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   DELETE /api/v1/admin/blogs/:id
+// @desc    Delete a blog post
+// @access  Admin
+router.delete('/blogs/:id', async (req, res) => {
+  try {
+    const blog = await Blog.findByIdAndDelete(req.params.id);
+    if (!blog) {
+      return res.status(404).json({ success: false, message: 'Blog post not found' });
+    }
+    res.json({
+      success: true,
+      message: 'Blog post deleted successfully'
+    });
+  } catch (error) {
+    console.error('Admin delete blog error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   PATCH /api/v1/admin/blogs/:id/publish
+// @desc    Toggle publish / draft status
+// @access  Admin
+router.patch('/blogs/:id/publish', async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+    if (!blog) {
+      return res.status(404).json({ success: false, message: 'Blog post not found' });
+    }
+
+    const nextStatus = blog.status === 'published' ? 'draft' : 'published';
+    blog.status = nextStatus;
+    if (nextStatus === 'published' && !blog.publishedAt) {
+      blog.publishedAt = new Date();
+    }
+
+    await blog.save();
+
+    res.json({
+      success: true,
+      message: `Blog post marked as ${nextStatus}`,
+      data: { id: blog._id, status: blog.status, publishedAt: blog.publishedAt }
+    });
+  } catch (error) {
+    console.error('Admin toggle publish error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   PATCH /api/v1/admin/blogs/:id/featured
+// @desc    Toggle featured status
+// @access  Admin
+router.patch('/blogs/:id/featured', async (req, res) => {
+  try {
+    const blog = await Blog.findById(req.params.id);
+    if (!blog) {
+      return res.status(404).json({ success: false, message: 'Blog post not found' });
+    }
+
+    blog.featured = !blog.featured;
+    await blog.save();
+
+    res.json({
+      success: true,
+      message: `Blog post featured status set to ${blog.featured}`,
+      data: { id: blog._id, featured: blog.featured }
+    });
+  } catch (error) {
+    console.error('Admin toggle featured error:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

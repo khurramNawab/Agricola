@@ -2,6 +2,7 @@
 // agree. Produces the { subtotal, discount, charges, total } shape the UI uses.
 const mongoose = require('mongoose');
 const Product = require('../models/Product');
+const Setting = require('../models/Setting');
 const { CouponUtils } = require('./helpers');
 const shipping = require('./shipping');
 const { unitWeightKg } = require('./parcel');
@@ -79,14 +80,33 @@ const buildSummary = async ({ items, discountCode, userId, toPincode, serviceTyp
       err.code = 'PRODUCT_UNAVAILABLE';
       throw err;
     }
-    if (product.stock < qty) {
+    let linePrice = product.price;
+    if (item.weight && product.variantStocks && product.variantStocks.length > 0) {
+      const v = product.variantStocks.find((vs) => String(vs.size).toLowerCase() === String(item.weight).toLowerCase());
+      if (v) {
+        if ((v.stock || 0) < qty) {
+          const err = new Error(`Insufficient stock for ${product.name} (${item.weight}). Available: ${v.stock || 0}`);
+          err.statusCode = 400;
+          err.code = 'INSUFFICIENT_STOCK';
+          throw err;
+        }
+        if (v.price && v.price > 0) {
+          linePrice = v.price;
+        }
+      } else if (product.stock < qty) {
+        const err = new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}`);
+        err.statusCode = 400;
+        err.code = 'INSUFFICIENT_STOCK';
+        throw err;
+      }
+    } else if (product.stock < qty) {
       const err = new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}`);
       err.statusCode = 400;
       err.code = 'INSUFFICIENT_STOCK';
       throw err;
     }
 
-    const lineTotal = product.price * qty;
+    const lineTotal = linePrice * qty;
     subtotal += lineTotal;
     // kg, from the selected pack size first — reading product.weight.value raw ignored
     // its unit and quoted a 250g product as a 250kg parcel.
@@ -104,25 +124,54 @@ const buildSummary = async ({ items, discountCode, userId, toPincode, serviceTyp
     });
   }
 
-  // Discount (server-validated; never trust a client-supplied amount)
+  // Discount (server-validated; supports stacked coupons)
   let discount = 0;
   let discountInfo = null;
+  let appliedCoupons = [];
   if (discountCode) {
-    const result = await CouponUtils.validateCoupon(String(discountCode), subtotal, userId);
-    if (!result.valid) {
-      const err = new Error(result.message || 'Invalid discount code');
-      err.statusCode = 400;
-      err.code = result.code || 'INVALID_DISCOUNT';
-      throw err;
+    let codes = Array.isArray(discountCode)
+      ? discountCode
+      : String(discountCode).split(',').map((c) => c.trim()).filter(Boolean);
+
+    // Deduplicate and uppercase codes
+    codes = [...new Set(codes.map((c) => String(c).trim().toUpperCase()).filter(Boolean))];
+
+    // Enforce store coupon stacking configuration
+    if (codes.length > 1) {
+      const setting = await Setting.findOne({ key: 'global_config' });
+      const allowStacking = setting?.allowCouponStacking ?? false;
+      const maxStacked = setting?.maxStackedCoupons || 2;
+
+      if (!allowStacking) {
+        codes = [codes[0]]; // Stacking disabled: only evaluate the first coupon
+      } else if (codes.length > maxStacked) {
+        codes = codes.slice(0, maxStacked);
+      }
     }
-    discount = result.discount;
-    discountInfo = result;
+
+    let remainingSubtotal = subtotal;
+    for (const code of codes) {
+      if (!code) continue;
+      const result = await CouponUtils.validateCoupon(String(code), remainingSubtotal, userId);
+      if (!result.valid) {
+        // If single coupon failed, throw error. If multi-coupon, apply valid ones or throw.
+        const err = new Error(result.message || 'Invalid discount code');
+        err.statusCode = 400;
+        err.code = result.code || 'INVALID_DISCOUNT';
+        throw err;
+      }
+      discount += result.discount;
+      remainingSubtotal = Math.max(0, remainingSubtotal - result.discount);
+      appliedCoupons.push(result);
+    }
+    discount = Math.min(discount, subtotal);
+    discountInfo = appliedCoupons[0] || null;
   }
 
   const charges = await computeCharges(subtotal, { toPincode, weight: totalWeight, declaredValue: subtotal, serviceType });
   const total = Math.max(0, subtotal - discount + charges);
 
-  return { items: resolved, subtotal, discount, charges, total, discountInfo, weight: totalWeight };
+  return { items: resolved, subtotal, discount, charges, total, discountInfo, appliedCoupons, weight: totalWeight };
 };
 
 module.exports = {

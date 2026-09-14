@@ -13,6 +13,8 @@ const shipping = require('../utils/shipping');
 const email = require('../utils/email');
 const mongoose = require('mongoose');
 
+const { CouponUtils } = require('../utils/helpers');
+
 // Best-effort shipment booking after a payment succeeds. Never throws: a fulfilment
 // failure must not break payment confirmation (it can be retried by an admin via
 // POST /shipping/create-shipment).
@@ -83,10 +85,26 @@ const fulfillPaidOrder = async (orderId, { razorpayPaymentId, razorpaySignature 
     if (r.modifiedCount !== 1) {
       console.error(`[fulfill] ${order.orderId}: stock short for "${item.name}" — needs manual review`);
     }
+    if (item.weight) {
+      await Product.updateOne(
+        { _id: pid, 'variantStocks.size': item.weight },
+        { $inc: { 'variantStocks.$.stock': -item.quantity } }
+      );
+    }
   }
 
   await Cart.updateOne({ user: order.user }, { $set: { items: [] } });
-  await User.findByIdAndUpdate(order.user, { $inc: { orders: 1, totalSpent: order.pricing.total } });
+  const customerName = (order.shippingAddress?.name || '').trim();
+  const userUpdate = { $inc: { orders: 1, totalSpent: order.pricing.total } };
+  if (customerName && customerName !== '—' && customerName !== 'Customer') {
+    userUpdate.$set = { name: customerName };
+  }
+  await User.findByIdAndUpdate(order.user, userUpdate);
+
+  // Record coupon redemption if a coupon was used
+  if (order.coupon?.code) {
+    await CouponUtils.recordRedemption(order.coupon.code, order.user, order.orderId, order.pricing?.discount);
+  }
 
   order.timeline.push({ status: 'confirmed', message: 'Payment received — order confirmed', timestamp: new Date() });
   await order.save();
@@ -191,14 +209,14 @@ router.post('/create-order', authenticate, async (req, res) => {
 
     // Apply coupon if provided
     if (coupon) {
-      const couponValidation = await validateCoupon(coupon.code, subtotal);
+      const couponValidation = await CouponUtils.validateCoupon(coupon.code, subtotal, userId);
       if (couponValidation.valid) {
         discount = couponValidation.discount;
       } else {
         return res.status(400).json({
           success: false,
           error: {
-            code: 'VALIDATION_ERROR',
+            code: couponValidation.code || 'VALIDATION_ERROR',
             message: couponValidation.message
           }
         });
@@ -318,6 +336,16 @@ router.post('/verify', authenticate, async (req, res) => {
     }
 
     // Verify signature
+    if (!process.env.RAZORPAY_KEY_SECRET) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'PAYMENT_GATEWAY_NOT_CONFIGURED',
+          message: 'Razorpay secret key is not configured on the server'
+        }
+      });
+    }
+
     const body = razorpay_order_id + '|' + razorpay_payment_id;
     const expectedSignature = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
@@ -808,34 +836,6 @@ function calculateShipping(subtotal, address) {
 function calculateTax(subtotal) {
   // GST calculation - 18% for most food items
   return Math.round(subtotal * 0.18);
-}
-
-async function validateCoupon(code, subtotal) {
-  // Placeholder coupon validation
-  // In real implementation, you would check against a coupons collection
-  const validCoupons = {
-    'SAVE10': { type: 'percentage', discount: 10, minOrder: 200 },
-    'FLAT50': { type: 'fixed', discount: 50, minOrder: 300 },
-    'NEWUSER': { type: 'percentage', discount: 15, minOrder: 100 }
-  };
-
-  const coupon = validCoupons[code.toUpperCase()];
-  if (!coupon) {
-    return { valid: false, message: 'Invalid coupon code' };
-  }
-
-  if (subtotal < coupon.minOrder) {
-    return { 
-      valid: false, 
-      message: `Minimum order amount of ₹${coupon.minOrder} required for this coupon` 
-    };
-  }
-
-  const discount = coupon.type === 'percentage' 
-    ? Math.round(subtotal * coupon.discount / 100)
-    : coupon.discount;
-
-  return { valid: true, discount };
 }
 
 module.exports = router;
