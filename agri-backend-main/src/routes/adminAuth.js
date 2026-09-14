@@ -191,7 +191,11 @@ router.post('/firebase-login', [
 ], handleValidationErrors, async (req, res) => {
   try {
     let phone = null;
-    if (req.body.idToken === 'bypass' || req.body.idToken === 'mock' || req.body.idToken.startsWith('mock-')) {
+    const isDevBypass =
+      process.env.NODE_ENV !== 'production' &&
+      (req.body.idToken === 'bypass' || req.body.idToken === 'mock' || req.body.idToken.startsWith('mock-'));
+
+    if (isDevBypass) {
       const configuredPhones = (process.env.ADMIN_PHONES || '+917062201992').split(',').map((p) => p.trim());
       phone = req.body.phone || configuredPhones[0];
     } else {
@@ -199,9 +203,14 @@ router.post('/firebase-login', [
         const decoded = await firebaseAuth.verifyIdToken(req.body.idToken);
         phone = decoded.phone_number;
       } catch (fbErr) {
-        // Dev fallback when Firebase is not configured or in local testing
-        const configuredPhones = (process.env.ADMIN_PHONES || '+917062201992').split(',').map((p) => p.trim());
-        phone = req.body.phone || configuredPhones[0];
+        // In development only: fall back to the configured phone when Firebase is unconfigured.
+        // In production this catch block is skipped so misconfiguration surfaces loudly.
+        if (process.env.NODE_ENV !== 'production') {
+          const configuredPhones = (process.env.ADMIN_PHONES || '+917062201992').split(',').map((p) => p.trim());
+          phone = req.body.phone || configuredPhones[0];
+        } else {
+          throw fbErr; // Surfaces as FIREBASE_UNCONFIGURED or invalid-token in production
+        }
       }
     }
 
@@ -215,8 +224,8 @@ router.post('/firebase-login', [
     let user = await resolveAdminUser(phone);
     let passwordOk = user ? await user.comparePassword(req.body.password) : false;
 
-    // Dev bypass mode fallback
-    if ((req.body.idToken === 'bypass' || req.body.idToken === 'mock') && (!user || !passwordOk)) {
+    // Dev-only bypass: skip password check when using mock/bypass idToken in non-production.
+    if (isDevBypass && (!user || !passwordOk)) {
       if (!user) {
         user = await User.create({
           phone,
@@ -263,6 +272,53 @@ router.post('/firebase-login', [
     return res.status(401).json({
       success: false,
       error: { code: 'INVALID_TOKEN', message: 'Invalid or expired verification. Please try again.' }
+    });
+  }
+});
+
+// @route   POST /api/v1/admin/auth/bypass-login
+// @desc    One-click credential bypass for admin login (demo & testing)
+// @access  Public
+router.post('/bypass-login', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({
+      success: false,
+      error: { code: 'FORBIDDEN', message: 'Bypass login is strictly disabled in production mode.' }
+    });
+  }
+  try {
+    let user = await User.findOne({ role: 'admin' });
+    if (!user) {
+      const configuredPhones = (process.env.ADMIN_PHONES || '+917062201992').split(',').map((p) => p.trim());
+      const phone = configuredPhones[0] || '+917062201992';
+      user = await User.findOne({ phone });
+      if (!user) {
+        user = await User.create({
+          phone,
+          role: 'admin',
+          name: 'Super Admin',
+          password: 'changeme123'
+        });
+      } else {
+        user.role = 'admin';
+        await user.save();
+      }
+    }
+    user.phoneVerified = true;
+    user.lastLogin = new Date();
+    await user.save();
+
+    const token = signAdminToken(user._id);
+    return res.json({
+      success: true,
+      message: 'Admin bypass login successful',
+      data: { token, user: { ...user.getStorefrontProfile(), role: user.role } }
+    });
+  } catch (error) {
+    console.error('Bypass login error:', error.message);
+    return res.status(500).json({
+      success: false,
+      error: { code: 'BYPASS_FAILED', message: error.message }
     });
   }
 });

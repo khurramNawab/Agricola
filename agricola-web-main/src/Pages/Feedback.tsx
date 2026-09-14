@@ -1,15 +1,12 @@
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import Footer from "../components/layout/Footer";
-import { StarIcon } from "../assets/icons";
 import { useStorefront } from "../storefront/StorefrontContext";
 import { submitFeedback } from "../lib/checkout";
 
-const inputClass =
-  "w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-[#84b817]";
-
 export default function Feedback() {
   const { user } = useStorefront();
-  const [rating, setRating] = useState(0);
+  const [rating, setRating] = useState(5);
   const [name, setName] = useState(user?.name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [message, setMessage] = useState("");
@@ -39,85 +36,145 @@ export default function Feedback() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50">
-      <main className="flex-1">
-        <div className="container mx-auto max-w-xl px-4 py-12">
-          <h1 className="mb-2 font-serif text-3xl text-gray-900 sm:text-4xl">
-            Share your feedback
-          </h1>
-          <p className="mb-8 text-sm text-gray-500">
-            We'd love to hear what you think about AgriCola — the products, the
-            website, anything. It helps us improve.
-          </p>
+    <div id="webcrumbs" className="min-h-screen bg-[#fbf9f6] flex flex-col font-sans">
+      <main className="flex-1 max-w-3xl mx-auto w-full px-4 lg:px-8 pt-6 pb-16">
+        {/* Top Breadcrumb */}
+        <section className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-semibold text-[#434936]">
+            <Link to="/products" className="hover:text-[#486800] transition-colors flex items-center gap-1">
+              <span className="material-symbols-outlined text-sm">storefront</span>
+              <span>Marketplace</span>
+            </Link>
+            <span className="material-symbols-outlined text-xs text-gray-300">chevron_right</span>
+            <span className="text-[#486800] font-bold">Share Feedback</span>
+          </nav>
+        </section>
+
+        <section className="bg-white rounded-3xl p-6 sm:p-10 shadow-xs border border-gray-100 max-w-2xl mx-auto">
+          <div className="text-center max-w-lg mx-auto mb-8">
+            <div className="w-16 h-16 rounded-3xl bg-[#c9ecc4]/60 text-[#486800] flex items-center justify-center text-3xl mx-auto mb-4 shadow-2xs">
+              <span className="material-symbols-outlined text-3xl">rate_review</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black text-[#1e3a1f] tracking-tight mb-2">
+              Share Your Harvest Experience
+            </h1>
+            <p className="text-xs sm:text-sm text-[#434936] leading-relaxed">
+              We'd love to hear your thoughts on our farm-direct superfoods, packaging freshness, or website experience. Your voice shapes future harvests.
+            </p>
+          </div>
 
           {done ? (
-            <div className="rounded-2xl border border-green-100 bg-green-50 p-8 text-center">
-              <p className="text-lg font-semibold text-green-700">Thank you! 🌾</p>
-              <p className="mt-1 text-sm text-green-700">
-                Your feedback has reached our team.
+            <div className="bg-[#c9ecc4]/40 rounded-3xl p-8 text-center border border-[#84b817]/30 my-4">
+              <div className="w-14 h-14 rounded-full bg-[#486800] text-white flex items-center justify-center text-2xl mx-auto mb-3 shadow-sm">
+                🌾
+              </div>
+              <h2 className="text-xl font-black text-[#1e3a1f] mb-1">Thank You for Your Feedback!</h2>
+              <p className="text-xs text-[#434936] max-w-md mx-auto leading-relaxed">
+                Your feedback has reached our product and agricultural quality team. We deeply appreciate your support for clean, ethical farming.
               </p>
+              <div className="mt-6 flex justify-center gap-3">
+                <Link
+                  to="/products"
+                  className="px-6 py-2.5 rounded-full bg-[#486800] hover:bg-[#1e3a1f] text-white text-xs font-bold transition-all shadow-xs"
+                >
+                  Explore Organic Harvests
+                </Link>
+              </div>
             </div>
           ) : (
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-4 rounded-2xl border border-gray-200 bg-white p-6"
-            >
-              <div>
-                <p className="mb-2 text-sm text-gray-600">How would you rate us?</p>
-                <div className="flex items-center gap-1">
+            <form onSubmit={handleSubmit} className="bg-[#f5f3f0] rounded-3xl p-6 sm:p-8 flex flex-col gap-4 border border-gray-200/70">
+              {/* Star Rating Bar */}
+              <div className="text-center pb-2">
+                <label className="text-xs font-extrabold text-[#1e3a1f] block mb-2">
+                  Overall Harvest Rating
+                </label>
+                <div className="flex items-center justify-center gap-2">
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button
                       type="button"
                       key={n}
                       onClick={() => setRating(n)}
-                      aria-label={`${n} star${n > 1 ? "s" : ""}`}
+                      aria-label={`${n} star rating`}
+                      className="p-1 cursor-pointer transition-transform hover:scale-110 active:scale-95"
                     >
-                      <StarIcon
-                        className={`h-7 w-7 ${
-                          n <= rating ? "text-yellow-400" : "text-gray-300"
-                        }`}
-                      />
+                      <span className={`material-symbols-outlined text-3xl ${
+                        n <= rating ? "text-amber-400 font-variation-fill" : "text-gray-300"
+                      }`}>
+                        star
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Your name (optional)"
-                  className={inputClass}
-                />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email (optional)"
-                  className={inputClass}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-[#1e3a1f] block mb-1.5">
+                    Your Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Ananya Sharma"
+                    className="w-full bg-white rounded-2xl px-4 py-3 text-xs font-bold text-[#1e3a1f] placeholder-gray-400 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#84b817]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-[#1e3a1f] block mb-1.5">
+                    Email Address (Optional)
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="e.g. ananya@domain.com"
+                    className="w-full bg-white rounded-2xl px-4 py-3 text-xs font-bold text-[#1e3a1f] placeholder-gray-400 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#84b817]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-[#1e3a1f] block mb-1.5">
+                  Your Thoughts &amp; Feedback <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={5}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Tell us what you loved about our superfoods, crunch freshness, or what we can do better…"
+                  className="w-full bg-white rounded-2xl p-4 text-xs font-bold text-[#1e3a1f] placeholder-gray-400 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#84b817] resize-none"
                 />
               </div>
 
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Tell us what's on your mind…"
-                rows={5}
-                className={inputClass}
-              />
-
-              {error && <p className="text-sm text-red-500">{error}</p>}
+              {error && (
+                <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base text-red-500">error</span>
+                  <span>{error}</span>
+                </div>
+              )}
 
               <button
                 type="submit"
                 disabled={busy || !message.trim()}
-                className="rounded-lg bg-[#84b817] px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#6d9913] disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full bg-[#486800] hover:bg-[#1e3a1f] text-white text-sm font-extrabold py-3.5 rounded-full shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
               >
-                {busy ? "Sending…" : "Send Feedback"}
+                {busy ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Submitting Feedback…</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Submit Feedback</span>
+                    <span className="material-symbols-outlined text-base">send</span>
+                  </>
+                )}
               </button>
             </form>
           )}
-        </div>
+        </section>
       </main>
       <Footer />
     </div>

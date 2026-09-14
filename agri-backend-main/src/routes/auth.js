@@ -247,8 +247,8 @@ router.post('/otp/request', [
     await sendOtpSms(fullPhone, code);
 
     // In dev sandbox mode (never production), echo the code so the frontend can
-    // complete login without a real SMS. Gated by OTP_DEV_MODE.
-    const echoOtp = process.env.OTP_DEV_MODE === 'true';
+    // complete login without a real SMS. Gated by OTP_DEV_MODE and non-production.
+    const echoOtp = process.env.OTP_DEV_MODE === 'true' && process.env.NODE_ENV !== 'production';
 
     return res.status(200).json({
       success: true,

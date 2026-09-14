@@ -16,7 +16,11 @@ export interface StorefrontProduct {
   rating: number;
   reviewsCount: number;
   inStock: boolean;
+  stock?: number;
   newlyAdded: boolean;
+  /** Admin-controlled organic tag — defaults to true */
+  isOrganic: boolean;
+  variantStocks?: { size: string; stock: number; price?: number }[];
   category: { id: string; name: string; slug: string } | null;
 }
 
@@ -49,6 +53,9 @@ interface RawProduct {
   images?: (string | { url: string })[];
   newlyAdded?: boolean;
   inStock?: boolean;
+  stock?: number;
+  isOrganic?: boolean;
+  variantStocks?: { size: string; stock: number; price?: number }[];
   about?: string;
   usageInstructions?: string;
   whyChoose?: string;
@@ -81,7 +88,14 @@ const mapProduct = (p: RawProduct): StorefrontProduct => ({
   rating: p.rating ?? 0,
   reviewsCount: p.reviewsCount ?? 0,
   inStock: p.inStock !== false,
+  stock: p.stock,
   newlyAdded: !!p.newlyAdded,
+  isOrganic: p.isOrganic !== false, // default true for existing products
+  variantStocks: (p.variantStocks || []).map((v: any) => ({
+    size: v.size,
+    stock: typeof v.stock === 'number' ? v.stock : 0,
+    price: v.price || p.price,
+  })),
   category: p.category ?? null,
 });
 
@@ -107,7 +121,7 @@ const mapCategory = (c: RawCategory): StorefrontCategory => ({
 });
 
 export async function getProducts(
-  params: { page?: number; limit?: number; category?: string; sort?: string; search?: string } = {},
+  params: { page?: number; limit?: number; category?: string; sort?: string; search?: string; ids?: string } = {},
   signal?: AbortSignal
 ): Promise<StorefrontProduct[]> {
   const res = await apiFetch<RawProduct[]>("/products", {
@@ -118,6 +132,7 @@ export async function getProducts(
       category: params.category,
       sort: params.sort,
       search: params.search,
+      ids: params.ids,
     },
     signal,
   });
@@ -211,4 +226,10 @@ export async function submitReview(
     { method: "POST", token: getCustomerToken(), body: input }
   );
   return res.data as { review: ProductReview; summary: ReviewSummary };
+}
+
+/** Popular search terms aggregated from categories and frequent product tags. */
+export async function getPopularSearches(signal?: AbortSignal): Promise<string[]> {
+  const res = await apiFetch<string[]>("/search/popular", { auth: false, signal });
+  return res.data ?? [];
 }

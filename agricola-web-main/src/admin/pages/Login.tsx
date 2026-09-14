@@ -45,7 +45,7 @@ export default function Login() {
       setSeconds(RESEND_SECONDS);
       setOtp(Array(OTP_LENGTH).fill(""));
     } catch (err) {
-      setError(authErrorText(err, "Something went wrong."));
+      setError(authErrorText(err, "Invalid phone or password. Unable to send OTP."));
     } finally {
       setBusy(false);
     }
@@ -171,7 +171,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={busy}
-              className="w-full rounded-lg bg-[#84b817] py-3 font-medium text-white transition-colors hover:bg-[#6d9913] disabled:opacity-50"
+              className="w-full rounded-lg bg-[#84b817] py-3 font-medium text-white transition-colors hover:bg-[#6d9913] disabled:opacity-50 cursor-pointer"
             >
               {busy ? "Sending..." : "Send OTP"}
             </button>
@@ -179,24 +179,23 @@ export default function Login() {
         ) : (
           <form onSubmit={handleVerify} className="space-y-4">
             <p className="text-center text-sm text-gray-500">
-              We've sent a 6 digit verification code to{" "}
-              <span className="font-medium text-gray-700">{phone}</span>.
+              Enter the 6-digit code sent to your phone
             </p>
 
-            <div className="flex justify-center gap-3">
-              {otp.map((digit, i) => (
+            <div className="flex justify-center gap-2">
+              {otp.map((digit, index) => (
                 <input
-                  key={i}
+                  key={index}
                   ref={(el) => {
-                    otpRefs.current[i] = el;
+                    otpRefs.current[index] = el;
                   }}
                   type="text"
                   inputMode="numeric"
                   maxLength={1}
                   value={digit}
-                  onChange={(e) => handleOtpChange(i, e.target.value)}
-                  onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                  onPaste={handleOtpPaste}
+                  onChange={(e) => handleOtpChange(index, e.target.value)}
+                  onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                  onPaste={index === 0 ? handleOtpPaste : undefined}
                   className="h-12 w-12 rounded-md border border-gray-200 bg-gray-50 text-center text-lg text-gray-800 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               ))}
@@ -208,7 +207,7 @@ export default function Login() {
                 type="button"
                 onClick={handleResend}
                 disabled={seconds > 0}
-                className="font-medium text-green-600 hover:text-green-700 disabled:cursor-not-allowed disabled:text-gray-400"
+                className="font-medium text-green-600 hover:text-green-700 disabled:cursor-not-allowed disabled:text-gray-400 cursor-pointer"
               >
                 Resend OTP
               </button>
@@ -217,7 +216,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={busy || otp.join("").length !== OTP_LENGTH}
-              className="w-full rounded-lg bg-[#84b817] py-3 font-medium text-white transition-colors hover:bg-[#6d9913] disabled:opacity-50"
+              className="w-full rounded-lg bg-[#84b817] py-3 font-medium text-white transition-colors hover:bg-[#6d9913] disabled:opacity-50 cursor-pointer"
             >
               {busy ? "Verifying..." : "Verify"}
             </button>
@@ -228,7 +227,7 @@ export default function Login() {
                 setStep("credentials");
                 setError("");
               }}
-              className="w-full text-center text-sm text-gray-500 hover:text-gray-700"
+              className="w-full text-center text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
             >
               Back
             </button>

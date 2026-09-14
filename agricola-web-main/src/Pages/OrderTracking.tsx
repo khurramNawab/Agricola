@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ChevronLeft, MapPin, Package, Phone, Mail } from "lucide-react";
-import { AgriWordmark } from "../assets/icons";
+import { Link, useSearchParams } from "react-router-dom";
+import Footer from "../components/layout/Footer";
 import { trackOrder, type TrackedOrder } from "../lib/checkout";
 
 const FALLBACK_IMAGE =
-  "https://images.unsplash.com/photo-1582793988951-9aed5509eb97?auto=format&fit=crop&w=200&q=70";
+  "https://images.unsplash.com/photo-1582793988951-9aed5509eb97?auto=format&fit=crop&w=400&q=70";
 
 const rupees = (n: number) => `₹${n.toLocaleString("en-IN")}`;
 
@@ -22,8 +21,8 @@ const fmtTime = (at: string) => {
 };
 
 export default function OrderTracking() {
-  const navigate = useNavigate();
-  const [orderId, setOrderId] = useState("");
+  const [searchParams] = useSearchParams();
+  const [orderId, setOrderId] = useState(searchParams.get("orderId") || "");
   const [mobile, setMobile] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -33,17 +32,20 @@ export default function OrderTracking() {
     e.preventDefault();
     if (loading) return;
     if (!orderId.trim() || !mobile.trim()) {
-      setError("Enter both your Order ID and mobile number.");
+      setError("Please enter both your Order ID and 10-digit mobile number.");
       return;
     }
     setError("");
     setResult(null);
     setLoading(true);
     try {
-      setResult(await trackOrder(orderId, mobile));
+      const res = await trackOrder(orderId.trim(), mobile.trim());
+      setResult(res);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Couldn't track this order."
+        err instanceof Error
+          ? err.message
+          : "No shipment found matching those details. Please double-check your Order ID and phone number."
       );
     } finally {
       setLoading(false);
@@ -51,158 +53,292 @@ export default function OrderTracking() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto max-w-2xl px-4 py-8">
-        {/* Top: back + wordmark */}
-        <div className="relative mb-8 flex items-center justify-center">
-          <button
-            onClick={() => navigate(-1)}
-            aria-label="Go back"
-            className="absolute left-0 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <AgriWordmark title="AgriCola" className="h-9 w-auto" />
-        </div>
+    <div id="webcrumbs" className="min-h-screen bg-[#fbf9f6] flex flex-col font-sans">
+      <main className="flex-1 max-w-5xl mx-auto w-full px-4 lg:px-8 pt-6 pb-16">
+        {/* Top Breadcrumb & Live Status */}
+        <section className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-semibold text-[#434936]">
+            <Link to="/products" className="hover:text-[#486800] transition-colors flex items-center gap-1">
+              <span className="material-symbols-outlined text-sm">storefront</span>
+              <span>Marketplace</span>
+            </Link>
+            <span className="material-symbols-outlined text-xs text-gray-300">chevron_right</span>
+            <span className="text-[#486800] font-bold">Track Live Shipment</span>
+          </nav>
 
-        {/* Track card */}
-        <div className="rounded-3xl bg-white p-6 shadow-sm sm:p-8">
-          <h1 className="mb-6 text-center font-serif text-3xl text-amber-500">
-            Track your order
-          </h1>
-
-          {/* Illustration */}
-          <div className="mb-8 flex items-center justify-center gap-1 text-amber-400">
-            <MapPin className="h-9 w-9 fill-blue-900 text-blue-900" />
-            <Package className="h-10 w-10 text-amber-400" />
-            <MapPin className="h-9 w-9 fill-pink-500 text-pink-500" />
+          <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-full border border-[#1e3a1f]/10 shadow-2xs">
+            <span className="w-2 h-2 rounded-full bg-[#486800] animate-pulse" />
+            <span className="text-xs font-bold text-[#434936]">
+              Real-Time GPS &amp; Logistics Tracking
+            </span>
           </div>
+        </section>
 
-          <form onSubmit={handleTrack} className="rounded-2xl bg-lime-100 p-6">
-            <label className="mb-2 block font-semibold text-gray-900">
-              Order ID
-            </label>
-            <input
-              value={orderId}
-              onChange={(e) => setOrderId(e.target.value)}
-              placeholder="Eg. ORD-20250918-7342"
-              className="w-full rounded-full bg-white px-5 py-3 text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
+        {/* Tracking Search Card */}
+        <section className="bg-white rounded-3xl p-6 sm:p-10 shadow-xs border border-gray-100 mb-8">
+          <div className="max-w-xl mx-auto text-center">
+            <div className="w-16 h-16 rounded-3xl bg-[#c9ecc4]/60 text-[#486800] flex items-center justify-center text-3xl mx-auto mb-4 shadow-2xs">
+              <span className="material-symbols-outlined text-3xl">local_shipping</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black text-[#1e3a1f] tracking-tight mb-2">
+              Track Your Farm-Fresh Order
+            </h1>
+            <p className="text-xs sm:text-sm text-[#434936] mb-8 leading-relaxed">
+              Enter your Order Reference ID and registered phone number to track your package dispatch and cold-chain transit status.
+            </p>
 
-            <label className="mb-2 mt-5 block font-semibold text-gray-900">
-              Mobile Number
-            </label>
-            <input
-              value={mobile}
-              onChange={(e) => setMobile(e.target.value)}
-              placeholder="Mobile Number here"
-              inputMode="numeric"
-              className="w-full rounded-full bg-white px-5 py-3 text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
+            <form onSubmit={handleTrack} className="bg-[#f5f3f0] rounded-3xl p-6 sm:p-8 flex flex-col gap-4 text-left border border-gray-200/70">
+              <div>
+                <label className="text-xs font-bold text-[#1e3a1f] block mb-1.5">
+                  Order ID
+                </label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-lg">
+                    receipt_long
+                  </span>
+                  <input
+                    type="text"
+                    value={orderId}
+                    onChange={(e) => setOrderId(e.target.value)}
+                    placeholder="e.g. ORD-20250918-7342"
+                    className="w-full bg-white rounded-2xl pl-10 pr-4 py-3 text-xs font-bold text-[#1e3a1f] placeholder-gray-400 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#84b817] uppercase"
+                  />
+                </div>
+              </div>
 
-            {error && (
-              <p className="mt-4 text-center text-sm text-red-500">{error}</p>
-            )}
+              <div>
+                <label className="text-xs font-bold text-[#1e3a1f] block mb-1.5">
+                  10-Digit Mobile Number
+                </label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-lg">
+                    phone
+                  </span>
+                  <input
+                    type="tel"
+                    value={mobile}
+                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="e.g. 9876543210"
+                    maxLength={10}
+                    className="w-full bg-white rounded-2xl pl-10 pr-4 py-3 text-xs font-bold text-[#1e3a1f] placeholder-gray-400 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#84b817]"
+                  />
+                </div>
+              </div>
 
-            <div className="mt-8 flex justify-center">
+              {error && (
+                <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base text-red-500">error</span>
+                  <span>{error}</span>
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full max-w-sm rounded-lg bg-gray-900 py-3.5 font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full bg-[#486800] hover:bg-[#1e3a1f] text-white text-sm font-extrabold py-3.5 rounded-full shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
               >
-                {loading ? "Tracking…" : "Track"}
+                {loading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Searching Harvest Network…</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Track Shipment</span>
+                    <span className="material-symbols-outlined text-base">search</span>
+                  </>
+                )}
               </button>
-            </div>
-          </form>
-        </div>
+            </form>
+          </div>
+        </section>
 
-        {/* Result */}
+        {/* Tracking Result Card */}
         {result && (
-          <div className="mt-6 rounded-3xl bg-white p-6 shadow-sm sm:p-8">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-2">
+          <section className="bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-gray-100 mb-8 flex flex-col gap-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-5 border-b border-gray-100">
               <div>
-                <p className="text-sm text-gray-500">Order</p>
-                <p className="font-semibold text-gray-900">{result.orderId}</p>
+                <span className="text-[10px] uppercase font-bold text-[#486800] tracking-wider block">
+                  Active Shipment Details
+                </span>
+                <h2 className="text-xl font-black text-[#1e3a1f]">
+                  Order #{result.orderId}
+                </h2>
               </div>
-              <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-medium capitalize text-green-700">
-                {result.status}
+              <span className={`px-4 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-wider ${
+                result.status === "delivered"
+                  ? "bg-[#c9ecc4] text-[#486800]"
+                  : result.status === "cancelled"
+                  ? "bg-red-100 text-red-800"
+                  : "bg-[#eaf3db] text-[#486800]"
+              }`}>
+                {result.status.replace(/_/g, " ")}
               </span>
             </div>
 
-            {/* Timeline */}
-            <h2 className="mb-4 font-semibold text-gray-900">Progress</h2>
-            <div className="space-y-4">
-              {result.timeline.map((ev, i) => {
-                const isLast = i === result.timeline.length - 1;
-                return (
-                  <div key={i} className="flex gap-3">
-                    <div className="flex flex-col items-center">
-                      <span
-                        className={`mt-1 h-3 w-3 shrink-0 rounded-full ${
-                          isLast ? "bg-[#84b817]" : "bg-gray-300"
-                        }`}
-                      />
-                      {i < result.timeline.length - 1 && (
-                        <span className="mt-1 w-px flex-1 bg-gray-200" />
-                      )}
+            {/* Visual Milestones Stepper Progress */}
+            {result.status !== "cancelled" && (
+              <div className="bg-[#f5f3f0] rounded-2xl p-5 border border-gray-200/60">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { key: "placed", label: "Order Placed", active: true },
+                    {
+                      key: "processing",
+                      label: "Packed & Assigned",
+                      active: ["processing", "shipped", "out_for_delivery", "delivered"].includes(result.status),
+                    },
+                    {
+                      key: "shipped",
+                      label: "Shipped",
+                      active: ["shipped", "out_for_delivery", "delivered"].includes(result.status),
+                    },
+                    {
+                      key: "delivered",
+                      label: "Delivered",
+                      active: result.status === "delivered",
+                    },
+                  ].map((step, idx) => (
+                    <div key={step.key} className="flex flex-col items-center text-center p-2 rounded-xl bg-white shadow-2xs">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black mb-1.5 transition-all ${
+                        step.active
+                          ? "bg-[#486800] text-white"
+                          : "bg-gray-200 text-gray-400"
+                      }`}>
+                        {step.active ? (
+                          <span className="material-symbols-outlined text-sm">check</span>
+                        ) : (
+                          idx + 1
+                        )}
+                      </div>
+                      <span className={`text-xs font-bold ${step.active ? "text-[#1e3a1f]" : "text-gray-400"}`}>
+                        {step.label}
+                      </span>
                     </div>
-                    <div className="pb-1">
-                      <p className="text-sm font-medium text-gray-900">
-                        {ev.message}
-                      </p>
-                      {ev.at && (
-                        <p className="text-xs text-gray-400">{fmtTime(ev.at)}</p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-            {/* Items */}
+            {/* Live Carrier AWB Card */}
+            {result.shipping?.trackingNumber && (
+              <div className="rounded-2xl bg-linear-to-r from-[#1e3a1f] to-[#2d5a27] p-5 sm:p-6 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                <div>
+                  <span className="text-[11px] uppercase tracking-wider text-[#a1d73a] font-bold block mb-0.5">
+                    Carrier: {result.shipping.carrier || "National Logistics Partner"}
+                  </span>
+                  <p className="font-mono text-sm sm:text-base font-bold text-white">
+                    AWB: {result.shipping.trackingNumber}
+                  </p>
+                  {result.shipping.estimatedDelivery && (
+                    <p className="text-xs text-white/80 mt-1">
+                      Estimated Arrival: {new Date(result.shipping.estimatedDelivery).toLocaleDateString("en-IN", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </p>
+                  )}
+                </div>
+
+                <a
+                  href={
+                    result.shipping.trackingUrl ||
+                    (String(result.shipping.carrier).toLowerCase().includes("ekart")
+                      ? `https://ekartlogistics.com/shipmenttrack/${result.shipping.trackingNumber}`
+                      : `https://shiprocket.co/tracking/${result.shipping.trackingNumber}`)
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-white hover:bg-[#c9ecc4] text-[#1e3a1f] font-extrabold px-5 py-2.5 rounded-full text-xs transition-all flex items-center gap-1.5 shrink-0 shadow-xs"
+                >
+                  <span>Live Courier Tracking</span>
+                  <span className="material-symbols-outlined text-sm">open_in_new</span>
+                </a>
+              </div>
+            )}
+
+            {/* Timeline Events Activity */}
+            {result.timeline && result.timeline.length > 0 && (
+              <div className="flex flex-col gap-3">
+                <h3 className="text-sm font-extrabold text-[#1e3a1f] flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[#486800] text-base">history</span>
+                  <span>Shipment Activity Logs</span>
+                </h3>
+
+                <div className="bg-[#f5f3f0] rounded-2xl p-5 flex flex-col gap-4 border border-gray-200/60">
+                  {result.timeline.map((ev, i) => {
+                    const isFirst = i === 0;
+                    return (
+                      <div key={i} className="flex gap-3 items-start">
+                        <div className="flex flex-col items-center">
+                          <span
+                            className={`mt-1 h-3 w-3 shrink-0 rounded-full ${
+                              isFirst ? "bg-[#486800] ring-4 ring-[#c9ecc4]" : "bg-gray-300"
+                            }`}
+                          />
+                          {i < result.timeline.length - 1 && (
+                            <span className="mt-1 w-0.5 h-8 bg-gray-300" />
+                          )}
+                        </div>
+                        <div className="pb-1">
+                          <p className="text-xs font-bold text-[#1e3a1f]">
+                            {ev.message}
+                          </p>
+                          {ev.at && (
+                            <p className="text-[10px] text-[#434936] mt-0.5">{fmtTime(ev.at)}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Items Overview */}
             {result.items.length > 0 && (
-              <>
-                <h2 className="mb-4 mt-8 font-semibold text-gray-900">Items</h2>
-                <div className="space-y-4">
+              <div className="flex flex-col gap-3">
+                <h3 className="text-sm font-extrabold text-[#1e3a1f]">
+                  Items in Shipment ({result.items.length})
+                </h3>
+                <div className="divide-y divide-gray-100 rounded-2xl bg-white border border-gray-100 p-4">
                   {result.items.map((item, i) => (
-                    <div key={i} className="flex items-center gap-4">
-                      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-gray-100">
-                        <img
-                          src={item.image || FALLBACK_IMAGE}
-                          alt={item.title}
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).src =
-                              FALLBACK_IMAGE;
-                          }}
-                        />
+                    <div key={i} className="py-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-[#f5f3f0] overflow-hidden shrink-0 border border-gray-100">
+                          <img
+                            src={item.image || FALLBACK_IMAGE}
+                            alt={item.title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = FALLBACK_IMAGE;
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-[#1e3a1f]">{item.title}</p>
+                          <p className="text-[11px] text-[#434936]">
+                            {item.weight ? `${item.weight} • ` : ""}Qty: {item.qty}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex-1 text-sm">
-                        <p className="font-medium text-gray-900">{item.title}</p>
-                        <p className="text-gray-500">
-                          {item.weight ? `${item.weight} · ` : ""}Qty {item.qty}
-                        </p>
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">
+                      <span className="text-xs font-extrabold text-[#1e3a1f]">
                         {rupees(item.subtotal)}
                       </span>
                     </div>
                   ))}
                 </div>
-              </>
+              </div>
             )}
 
-            {/* Delivery address */}
+            {/* Delivery Address */}
             {result.address && (
-              <div className="mt-8 border-t border-gray-100 pt-5 text-sm">
-                <h2 className="mb-2 font-semibold text-gray-900">
-                  Delivery Address
-                </h2>
-                <p className="font-medium text-gray-800">
-                  {result.address.name}
-                </p>
-                <p className="text-gray-600">
+              <div className="p-4 rounded-2xl bg-[#f5f3f0] border border-gray-200/60 text-xs text-[#434936]">
+                <span className="text-[10px] font-bold uppercase text-[#486800] block mb-1">
+                  Delivery Destination
+                </span>
+                <p className="font-extrabold text-[#1e3a1f] text-sm">{result.address.name}</p>
+                <p className="mt-0.5">
                   {[
                     result.address.street,
                     result.address.city,
@@ -215,38 +351,39 @@ export default function OrderTracking() {
                 </p>
               </div>
             )}
-          </div>
+          </section>
         )}
 
-        {/* Help card */}
-        <div className="mt-6 rounded-3xl bg-white p-6 shadow-sm sm:p-8">
-          <h2 className="mb-1 text-lg font-bold text-gray-900">
-            Can't Find Your Order ID?
-          </h2>
-          <p className="text-sm text-gray-500">
-            We sent your order tracking number on your registered email address
-            &amp; SMS.
-          </p>
-          <hr className="my-5 border-gray-100" />
-          <p className="mb-3 text-sm text-gray-500">
-            If still can't find, call support
-          </p>
-          <div className="flex flex-wrap gap-8 text-sm">
+        {/* Customer Help Box */}
+        <section className="bg-white rounded-3xl p-6 sm:p-8 shadow-xs border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div>
+            <h3 className="text-base font-extrabold text-[#1e3a1f] mb-1">
+              Can't locate your Order ID?
+            </h3>
+            <p className="text-xs text-[#434936]">
+              Your order reference was sent via SMS and Email upon order confirmation. You can also reach our customer support team directly.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
             <a
               href="tel:+919012659000"
-              className="flex items-center gap-2 text-green-600 hover:underline"
+              className="px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 text-xs font-bold text-[#1e3a1f] flex items-center gap-1.5 shadow-2xs"
             >
-              <Phone className="h-4 w-4" /> +91 9012659000
+              <span className="material-symbols-outlined text-sm text-[#486800]">phone</span>
+              <span>+91 9012659000</span>
             </a>
             <a
               href="mailto:support@agricola.co.in"
-              className="flex items-center gap-2 text-green-600 hover:underline"
+              className="px-4 py-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 text-xs font-bold text-[#1e3a1f] flex items-center gap-1.5 shadow-2xs"
             >
-              <Mail className="h-4 w-4" /> support@agricola.co.in
+              <span className="material-symbols-outlined text-sm text-[#486800]">mail</span>
+              <span>support@agricola.co.in</span>
             </a>
           </div>
-        </div>
-      </div>
+        </section>
+      </main>
+      <Footer />
     </div>
   );
 }

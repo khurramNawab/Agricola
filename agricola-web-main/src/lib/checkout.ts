@@ -179,6 +179,8 @@ export async function getPaymentMethods(
 
 export interface CheckoutConfig {
   freeShippingThreshold: number;
+  allowCouponStacking?: boolean;
+  maxStackedCoupons?: number;
 }
 
 export async function getCheckoutConfig(
@@ -193,6 +195,8 @@ export interface PincodeServiceability {
   city?: string | null;
   state?: string | null;
   cod?: boolean;
+  provider?: string | null;
+  eta?: { date: string | null; days: number | null } | null;
   /** True when the carrier couldn't be reached — treated as serviceable, don't block. */
   unverified?: boolean;
 }
@@ -262,12 +266,13 @@ export interface DiscountResult {
 
 export async function validateDiscount(
   code: string,
-  subtotal: number
+  subtotal: number,
+  existingCodes?: string[]
 ): Promise<DiscountResult> {
   return apiData<DiscountResult>("/checkout/discount", {
     method: "POST",
     ...authOpts(),
-    body: { code, subtotal },
+    body: { code, subtotal, existingCodes },
   });
 }
 
@@ -329,6 +334,12 @@ export interface OrderDetail {
     pincode: string;
     country: string;
   } | null;
+  shipping?: {
+    carrier: string | null;
+    trackingNumber: string | null;
+    trackingUrl: string | null;
+    estimatedDelivery: string | null;
+  } | null;
   timeline: { status: string; message: string; at: string }[];
   createdAt: string;
 }
@@ -340,11 +351,30 @@ export async function getOrder(
   return apiData<OrderDetail>(`/orders/${id}`, { ...authOpts(), signal });
 }
 
+export async function getMyOrders(
+  params?: { page?: number; limit?: number; status?: string },
+  signal?: AbortSignal
+): Promise<{ orders: OrderDetail[]; pagination?: { current: number; pages: number; total: number; limit: number } }> {
+  const query: Record<string, string | number> = {};
+  if (params?.page) query.page = params.page;
+  if (params?.limit) query.limit = params.limit;
+  if (params?.status) query.status = params.status;
+  const res = await apiFetch<OrderDetail[]>("/orders/my-orders", {
+    ...authOpts(),
+    query,
+    signal,
+  });
+  return {
+    orders: res.data || [],
+    pagination: res.pagination as any,
+  };
+}
+
 // Guest order tracking: orderId + the mobile on the order's shipping address.
 // Public endpoint (no login) — returns status, timeline, items, and address.
 export type TrackedOrder = Pick<
   OrderDetail,
-  "orderId" | "status" | "timeline" | "items" | "address"
+  "orderId" | "status" | "shipping" | "timeline" | "items" | "address"
 >;
 
 export async function trackOrder(

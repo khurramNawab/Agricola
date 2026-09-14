@@ -9,6 +9,18 @@ const feedbackSchema = new mongoose.Schema(
     rating: { type: Number, min: 1, max: 5 },
     message: { type: String, required: true, trim: true, maxlength: 2000 },
     page: { type: String, default: '' },
+    status: {
+      type: String,
+      enum: ['open', 'in_progress', 'resolved'],
+      default: 'open'
+    },
+    adminReply: {
+      type: String,
+      default: ''
+    },
+    repliedAt: {
+      type: Date
+    }
   },
   { timestamps: true }
 );

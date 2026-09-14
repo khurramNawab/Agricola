@@ -2,16 +2,23 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Header from './components/Header';
 import Products from './pages/Products';
+import Inventory from './pages/Inventory';
 import Orders from './pages/Orders';
 import Dashboard from './pages/Dashboard';
 import Sidebar from './components/SideBar';
 import Payments from './pages/Payment';
 import Warehouses from './pages/Warehouses';
+import Coupons from './pages/Coupons';
+import CampaignsPage from './pages/Campaigns';
+import BlogManagerPage from './pages/Blog';
+import AbandonedCartPage from './pages/AbandonedCart';
+import SupportPage from './pages/Support';
+import SettingsPage from './pages/Settings';
 import { getDashboardStats } from './api/adminApi';
 
 function getPageFromPath(pathname: string): string {
   const sub = pathname.replace(/^\/admin\/?/, '').split('/')[0];
-  if (['products', 'orders', 'payments', 'warehouses', 'support', 'settings'].includes(sub)) {
+  if (['products', 'inventory', 'orders', 'payments', 'warehouses', 'coupons', 'campaigns', 'blogs', 'abandoned-carts', 'support', 'settings'].includes(sub)) {
     return sub;
   }
   return 'dashboard';
@@ -62,6 +69,16 @@ function Admin() {
         return 'Dashboard';
       case 'products':
         return 'Products & Categories';
+      case 'inventory':
+        return 'Inventory & Stock Management';
+      case 'coupons':
+        return 'Coupons & Deals';
+      case 'campaigns':
+        return 'Festival & Hero Campaigns';
+      case 'blogs':
+        return 'Blog & Article Management';
+      case 'abandoned-carts':
+        return 'Abandoned Cart Recovery';
       case 'orders':
         return 'Orders & Shipment';
       case 'payments':
@@ -83,6 +100,16 @@ function Admin() {
         return <Dashboard />;
       case 'products':
         return <Products />;
+      case 'inventory':
+        return <Inventory />;
+      case 'coupons':
+        return <Coupons />;
+      case 'campaigns':
+        return <CampaignsPage />;
+      case 'blogs':
+        return <BlogManagerPage />;
+      case 'abandoned-carts':
+        return <AbandonedCartPage />;
       case 'orders':
         return <Orders />;
       case 'payments':
@@ -90,23 +117,9 @@ function Admin() {
       case 'warehouses':
         return <Warehouses />;
       case 'support':
-        return (
-          <div className="p-8">
-            <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Support</h3>
-              <p className="text-gray-600">Support system coming soon</p>
-            </div>
-          </div>
-        );
+        return <SupportPage />;
       case 'settings':
-        return (
-          <div className="p-8">
-            <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Settings</h3>
-              <p className="text-gray-600">Settings panel coming soon</p>
-            </div>
-          </div>
-        );
+        return <SettingsPage />;
       default:
         return <Dashboard />;
     }

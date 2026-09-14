@@ -56,6 +56,7 @@ interface RawUser {
   email?: string | null;
   phone: string;
   createdAt: string;
+  variantStocks?: { size: string; stock: number; price?: number }[];
   orders?: number;
   status: UserStatus;
 }
@@ -87,6 +88,16 @@ export async function adminFirebaseLogin(
   return apiData<{ token: string; user: AdminProfile }>(
     "/admin/auth/firebase-login",
     { method: "POST", auth: false, body: { idToken, password } }
+  );
+}
+
+/**
+ * Instant credential bypass for admin access (demo / testing).
+ */
+export async function adminBypassLogin(): Promise<{ token: string; user: AdminProfile }> {
+  return apiData<{ token: string; user: AdminProfile }>(
+    "/admin/auth/bypass-login",
+    { method: "POST", auth: false }
   );
 }
 
@@ -189,11 +200,18 @@ export interface AdminProduct {
   sizes: string[];
   images: ProductImage[];
   featured: boolean;
+  /** Whether this product is organic — defaults to true for existing products */
+  isOrganic: boolean;
   shortDescription: string;
   about: string;
   usageInstructions: string;
   whyChoose: string;
   createdAt: string;
+  variantStocks?: {
+    size: string;
+    stock: number;
+    price?: number;
+  }[];
   warehouseStock?: {
     warehouseId?: string;
     code?: string;
@@ -217,6 +235,7 @@ export interface ProductPayload {
   originalPrice?: number;
   sellingPrice: number;
   variants?: Record<string, boolean> | string[];
+  variantStocks?: { size: string; stock: number; price?: number }[];
   shortDescription?: string;
   about?: string;
   usageInstructions?: string;
@@ -225,6 +244,8 @@ export interface ProductPayload {
   images?: (string | ProductImage)[];
   stock?: number;
   featured?: boolean;
+  /** Whether the product is organic. Omitting falls back to schema default (true). */
+  isOrganic?: boolean;
 }
 
 export async function getProducts(
@@ -583,6 +604,8 @@ export interface AdminWarehouse {
   spocPhone?: string;
   isDefault: boolean;
   status: "active" | "inactive";
+  climateControl?: string;
+  sameDayCutoff?: string;
   createdAt?: string;
 }
 
@@ -603,6 +626,8 @@ export interface WarehousePayload {
   spocPhone?: string;
   isDefault?: boolean;
   status?: "active" | "inactive";
+  climateControl?: string;
+  sameDayCutoff?: string;
 }
 
 export interface SyncPreviewItem {
@@ -656,6 +681,42 @@ export async function updateWarehouse(
   payload: Partial<WarehousePayload>
 ): Promise<AdminWarehouse> {
   return apiData<AdminWarehouse>(`/admin/warehouses/${id}`, { method: "PUT", body: payload });
+}
+
+export interface WarehouseConnectivityDiagnostic {
+  warehouseId: string;
+  code: string;
+  name: string;
+  pincode?: string;
+  shiprocket: {
+    status: 'ready' | 'error' | 'unconfigured' | 'pending';
+    configured: boolean;
+    latencyMs: number;
+    nickname?: string;
+    message: string;
+  };
+  ekart: {
+    status: 'ready' | 'error' | 'unconfigured' | 'pending';
+    configured: boolean;
+    latencyMs: number;
+    message: string;
+  };
+  reach: {
+    status: string;
+    label: string;
+    coverage: string;
+  };
+  testedAt: string;
+}
+
+export async function testWarehouseConnectivity(
+  id: string,
+  signal?: AbortSignal
+): Promise<WarehouseConnectivityDiagnostic> {
+  return apiData<WarehouseConnectivityDiagnostic>(
+    `/admin/warehouses/${id}/test-connectivity`,
+    { signal }
+  );
 }
 
 export async function toggleWarehouseStatus(
@@ -736,4 +797,693 @@ export async function assignOrderWarehouse(
   });
 }
 
+// ----- Coupons -------------------------------------------------------------
+
+export interface CouponRedemption {
+  id: string;
+  user: {
+    id?: string;
+    name?: string;
+    phone?: string;
+    email?: string;
+  } | null;
+  orderId?: string;
+  discountAmount: number;
+  redeemedAt: string;
+}
+
+export interface AdminCoupon {
+  id: string;
+  code: string;
+  description?: string;
+  discountType: "percentage" | "flat" | "fixed";
+  discountValue: number;
+  minOrderValue: number;
+  maxDiscountCap: number | null;
+  validFrom: string;
+  validTo: string;
+  totalUsageLimit: number | null;
+  perUserLimit: number;
+  usedCount: number;
+  isActive: boolean;
+  firstOrderOnly: boolean;
+  isFestivalOffer?: boolean;
+  status: "active" | "expired" | "exhausted" | "inactive" | "upcoming";
+  redemptionsCount?: number;
+  redemptions?: CouponRedemption[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CouponsPage {
+  coupons: AdminCoupon[];
+  pagination: {
+    total: number;
+    page: number;
+    pages: number;
+    limit: number;
+  };
+}
+
+export interface CouponPayload {
+  code: string;
+  description?: string;
+  discountType: "percentage" | "flat" | "fixed";
+  discountValue: number;
+  minOrderValue?: number;
+  maxDiscountCap?: number | null;
+  validFrom?: string;
+  validTo: string;
+  totalUsageLimit?: number | null;
+  perUserLimit?: number;
+  isActive?: boolean;
+  firstOrderOnly?: boolean;
+  isFestivalOffer?: boolean;
+}
+
+export async function getAdminCoupons(
+  params?: { page?: number; limit?: number; search?: string; status?: string },
+  signal?: AbortSignal
+): Promise<CouponsPage> {
+  const q = new URLSearchParams();
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.search) q.set("search", params.search);
+  if (params?.status && params.status !== "all") q.set("status", params.status);
+
+  const qs = q.toString();
+  return apiData<CouponsPage>(`/admin/coupons${qs ? `?${qs}` : ""}`, { signal });
+}
+
+export async function getAdminCoupon(id: string, signal?: AbortSignal): Promise<AdminCoupon> {
+  return apiData<AdminCoupon>(`/admin/coupons/${id}`, { signal });
+}
+
+export async function createAdminCoupon(payload: CouponPayload): Promise<AdminCoupon> {
+  return apiData<AdminCoupon>("/admin/coupons", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function updateAdminCoupon(id: string, payload: Partial<CouponPayload>): Promise<AdminCoupon> {
+  return apiData<AdminCoupon>(`/admin/coupons/${id}`, {
+    method: "PUT",
+    body: payload,
+  });
+}
+
+export async function deleteAdminCoupon(id: string): Promise<void> {
+  await apiData<{ success: boolean }>(`/admin/coupons/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function toggleAdminCoupon(id: string): Promise<{ id: string; isActive: boolean }> {
+  return apiData<{ id: string; isActive: boolean }>(`/admin/coupons/${id}/toggle`, {
+    method: "PATCH",
+  });
+}
+
+export async function suggestCouponCode(): Promise<{ code: string }> {
+  return apiData<{ code: string }>("/admin/coupons/suggest-code");
+}
+
+// ----- Abandoned Carts -----------------------------------------------------
+
+export interface AbandonedCartItem {
+  id: string;
+  productId: string;
+  name: string;
+  weight?: string | null;
+  price: number;
+  qty: number;
+  subtotal: number;
+  image: string;
+}
+
+export interface AbandonedCartUser {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  userId?: string;
+}
+
+export interface AbandonedCart {
+  id: string;
+  user: AbandonedCartUser;
+  items: AbandonedCartItem[];
+  itemCount: number;
+  cartTotal: number;
+  updatedAt: string;
+  hoursInactive: number;
+  lastReminderSentAt?: string | null;
+  reminderCount: number;
+}
+
+export interface AbandonedCartsPage {
+  carts: AbandonedCart[];
+  summary: {
+    totalAbandoned: number;
+    totalValue: number;
+    hoursThreshold: number;
+  };
+  pagination: {
+    total: number;
+    page: number;
+    pages: number;
+    limit: number;
+  };
+}
+
+export interface SendAbandonedMessagePayload {
+  cartIds: string[];
+  channel: "email" | "sms" | "whatsapp" | "all";
+  templateId?: string;
+  customMessage?: string;
+  couponCode?: string;
+  subject?: string;
+}
+
+export interface AbandonedCartLogItem {
+  _id: string;
+  user: {
+    _id: string;
+    name: string;
+    phone?: string;
+    email?: string;
+  };
+  recipientName: string;
+  recipientPhone?: string;
+  recipientEmail?: string;
+  channel: string;
+  subject?: string;
+  messageContent: string;
+  couponCode?: string;
+  cartValue: number;
+  itemNames: string[];
+  status: string;
+  errorDetails?: string;
+  sentAt: string;
+}
+
+export interface AbandonedLogsPage {
+  logs: AbandonedCartLogItem[];
+  pagination: {
+    total: number;
+    page: number;
+    pages: number;
+    limit: number;
+  };
+}
+
+export async function getAbandonedCarts(
+  params?: { hours?: number; page?: number; limit?: number; search?: string },
+  signal?: AbortSignal
+): Promise<AbandonedCartsPage> {
+  const q = new URLSearchParams();
+  if (params?.hours) q.set("hours", String(params.hours));
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.search) q.set("search", params.search);
+
+  const qs = q.toString();
+  return apiData<AbandonedCartsPage>(`/admin/abandoned-carts${qs ? `?${qs}` : ""}`, { signal });
+}
+
+export async function sendAbandonedCartMessage(
+  payload: SendAbandonedMessagePayload
+): Promise<{
+  total: number;
+  sentEmails: number;
+  sentSms: number;
+  whatsappLinks: Array<{ cartId: string; userName: string; phone: string; link: string; message: string }>;
+  failed: number;
+}> {
+  return apiData("/admin/abandoned-carts/send-message", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function getAbandonedCartLogs(
+  params?: { page?: number; limit?: number; channel?: string },
+  signal?: AbortSignal
+): Promise<AbandonedLogsPage> {
+  const q = new URLSearchParams();
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.channel && params.channel !== "all") q.set("channel", params.channel);
+
+  const qs = q.toString();
+  return apiData<AbandonedLogsPage>(`/admin/abandoned-carts/logs${qs ? `?${qs}` : ""}`, { signal });
+}
+
+// ----- Festival Hero Campaigns & Video Module ------------------------------
+
+export interface HeroSlide {
+  id?: string;
+  image: string;
+  title: string;
+  description?: string;
+  ctaText?: string;
+  ctaLink?: string;
+  order: number;
+}
+
+export interface VideoModuleConfig {
+  isEnabled: boolean;
+  title?: string;
+  subtitle?: string;
+  videoType: "upload" | "url" | "youtube";
+  videoUrl?: string;
+  autoplay?: boolean;
+  muted?: boolean;
+  loop?: boolean;
+  position?: "hero_banner" | "standalone_section";
+}
+
+export interface AdminHeroCampaign {
+  id: string;
+  name: string;
+  festivalType: string;
+  slidesCount: number;
+  slides: HeroSlide[];
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  priority: number;
+  status: "active" | "upcoming" | "ended" | "inactive";
+  couponCode?: string;
+  videoModule?: VideoModuleConfig;
+  hasOverlap?: boolean;
+  overlappingCampaigns?: Array<{ id: string; name: string; festivalType: string }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HeroCampaignsPage {
+  campaigns: AdminHeroCampaign[];
+  pagination: {
+    total: number;
+    page: number;
+    pages: number;
+    limit: number;
+  };
+}
+
+export interface HeroCampaignPayload {
+  name: string;
+  festivalType?: string;
+  startDate: string;
+  endDate: string;
+  slides: HeroSlide[];
+  isActive?: boolean;
+  priority?: number;
+  videoModule?: VideoModuleConfig;
+}
+
+export async function getAdminCampaigns(
+  params?: { page?: number; limit?: number; search?: string; status?: string },
+  signal?: AbortSignal
+): Promise<HeroCampaignsPage> {
+  const q = new URLSearchParams();
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.search) q.set("search", params.search);
+  if (params?.status && params.status !== "all") q.set("status", params.status);
+
+  const qs = q.toString();
+  return apiData<HeroCampaignsPage>(`/admin/campaigns${qs ? `?${qs}` : ""}`, { signal });
+}
+
+export async function getAdminCampaign(id: string, signal?: AbortSignal): Promise<AdminHeroCampaign> {
+  return apiData<AdminHeroCampaign>(`/admin/campaigns/${id}`, { signal });
+}
+
+export async function createAdminCampaign(
+  payload: HeroCampaignPayload
+): Promise<{ campaign: AdminHeroCampaign; warning?: string }> {
+  return apiData("/admin/campaigns", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function updateAdminCampaign(
+  id: string,
+  payload: Partial<HeroCampaignPayload>
+): Promise<AdminHeroCampaign> {
+  return apiData<AdminHeroCampaign>(`/admin/campaigns/${id}`, {
+    method: "PUT",
+    body: payload,
+  });
+}
+
+export async function toggleAdminCampaign(
+  id: string
+): Promise<{ id: string; isActive: boolean }> {
+  return apiData<{ id: string; isActive: boolean }>(`/admin/campaigns/${id}/toggle`, {
+    method: "PATCH",
+  });
+}
+
+export async function deleteAdminCampaign(id: string): Promise<void> {
+  await apiData<{ success: boolean }>(`/admin/campaigns/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// ----- Support & Customer Inquiries -----------------------------------------
+
+export interface AdminFeedback {
+  _id: string;
+  user?: { _id: string; name: string; email: string; phone: string } | null;
+  name: string;
+  email: string;
+  rating?: number;
+  message: string;
+  page?: string;
+  status: 'open' | 'in_progress' | 'resolved';
+  adminReply?: string;
+  repliedAt?: string;
+  createdAt: string;
+}
+
+export interface FeedbacksPage {
+  feedbacks: AdminFeedback[];
+  stats: {
+    total: number;
+    open: number;
+    resolved: number;
+  };
+  pagination: ApiPagination;
+}
+
+export async function getAdminFeedbacks(
+  params?: { page?: number; limit?: number; search?: string; status?: string; rating?: string },
+  signal?: AbortSignal
+): Promise<FeedbacksPage> {
+  const q = new URLSearchParams();
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.search) q.set("search", params.search);
+  if (params?.status && params.status !== "all") q.set("status", params.status);
+  if (params?.rating && params.rating !== "all") q.set("rating", params.rating);
+
+  const qs = q.toString();
+  return apiData<FeedbacksPage>(`/admin/support/feedbacks${qs ? `?${qs}` : ""}`, { signal });
+}
+
+export async function toggleFeedbackStatus(id: string, status?: string): Promise<AdminFeedback> {
+  return apiData<AdminFeedback>(`/admin/support/feedbacks/${id}/status`, {
+    method: "PATCH",
+    body: { status },
+  });
+}
+
+export async function replyToFeedback(id: string, message: string): Promise<AdminFeedback> {
+  return apiData<AdminFeedback>(`/admin/support/feedbacks/${id}/reply`, {
+    method: "POST",
+    body: { message },
+  });
+}
+
+export async function deleteFeedback(id: string): Promise<void> {
+  await apiData<{ success: boolean }>(`/admin/support/feedbacks/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export interface LaunchSubscriberItem {
+  _id: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  category: 'utensils' | 'gardening' | 'both';
+  preferredChannel: 'email' | 'whatsapp' | 'sms';
+  interestTags: string[];
+  source?: string;
+  createdAt: string;
+}
+
+export interface LaunchSubscribersPage {
+  subscribers: LaunchSubscriberItem[];
+  stats: {
+    total: number;
+    utensilsCount: number;
+    gardeningCount: number;
+    bothCount: number;
+  };
+  pagination: ApiPagination;
+}
+
+export async function getAdminSubscribers(
+  params?: { page?: number; limit?: number; search?: string; category?: string },
+  signal?: AbortSignal
+): Promise<LaunchSubscribersPage> {
+  const q = new URLSearchParams();
+  if (params?.page) q.set("page", String(params.page));
+  if (params?.limit) q.set("limit", String(params.limit));
+  if (params?.search) q.set("search", params.search);
+  if (params?.category && params.category !== "all") q.set("category", params.category);
+
+  const qs = q.toString();
+  return apiData<LaunchSubscribersPage>(`/admin/subscribers${qs ? `?${qs}` : ""}`, { signal });
+}
+
+export async function deleteAdminSubscriber(id: string): Promise<void> {
+  await apiData<{ success: boolean }>(`/admin/subscribers/${id}`, {
+    method: "DELETE",
+  });
+}
+
+// ----- Store Settings -------------------------------------------------------
+
+export interface AdminStoreSettings {
+  _id?: string;
+  storeName: string;
+  supportEmail: string;
+  supportPhone: string;
+  supportWhatsApp: string;
+  businessHours: string;
+  storeAddress: string;
+  enableMultiWarehouse: boolean;
+  defaultCarrier: 'both' | 'ekart' | 'shiprocket';
+  freeShippingThreshold: number;
+  standardDeliveryCharge: number;
+  enableWhatsAppNotifications: boolean;
+  enableEmailNotifications: boolean;
+  enableCod: boolean;
+  maxCodAmount: number;
+  allowCouponStacking?: boolean;
+  maxStackedCoupons?: number;
+}
+
+export async function getAdminSettings(signal?: AbortSignal): Promise<AdminStoreSettings> {
+  return apiData<AdminStoreSettings>("/admin/settings", { signal });
+}
+
+export async function updateAdminSettings(payload: Partial<AdminStoreSettings>): Promise<AdminStoreSettings> {
+  return apiData<AdminStoreSettings>("/admin/settings", {
+    method: "PUT",
+    body: payload,
+  });
+}
+
+// ----- Media & File Storage (Images & Videos) --------------------------------
+export interface UploadedMedia {
+  url: string;
+  key: string;
+  isLocal?: boolean;
+}
+
+export async function uploadMedia(
+  file: File,
+  folder = "media"
+): Promise<UploadedMedia> {
+  const env = await apiUpload<UploadedMedia>("/admin/upload", [file], {
+    query: { folder },
+  });
+  if (!env.data) throw new Error("Upload did not return media data");
+  return env.data;
+}
+
+export async function deleteMedia(keyOrUrl: string): Promise<void> {
+  await apiFetch("/admin/upload", {
+    method: "DELETE",
+    body: { key: keyOrUrl },
+  });
+}
+
+
+// ----- Inventory Management -------------------------------------------------
+
+export interface InventoryAllocation {
+  warehouseId: string;
+  warehouseName: string;
+  warehouseCode: string;
+  stock: number;
+}
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  price: number;
+  sellingPrice: number;
+  stock: number;
+  lowStockThreshold: number;
+  isLowStock: boolean;
+  isOutOfStock: boolean;
+  images: { url: string; alt?: string }[];
+  isActive: boolean;
+  allocations: InventoryAllocation[];
+  totalWarehouseStock: number;
+}
+
+export async function getAdminInventory(signal?: AbortSignal): Promise<InventoryItem[]> {
+  return apiData<InventoryItem[]>("/admin/inventory", { signal });
+}
+
+export async function updateAdminInventoryStock(
+  productId: string,
+  stock: number,
+  warehouseId?: string
+): Promise<{ id: string; name: string; stock: number; isLowStock: boolean; isOutOfStock: boolean }> {
+  return apiData<{ id: string; name: string; stock: number; isLowStock: boolean; isOutOfStock: boolean }>(
+    `/admin/inventory/${productId}`,
+    { method: "PATCH", body: { stock, warehouseId } }
+  );
+}
+
+// ==========================================
+// BLOG TYPES & API
+// ==========================================
+
+export interface AdminBlogPost {
+  _id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: string;
+  coverImage?: string;
+  author: {
+    name: string;
+    avatar?: string;
+    role?: string;
+  };
+  category: string;
+  tags: string[];
+  status: "draft" | "published";
+  readTime?: string;
+  viewCount: number;
+  featured: boolean;
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  seo?: {
+    metaTitle?: string;
+    metaDescription?: string;
+    focusKeyword?: string;
+    canonicalUrl?: string;
+  };
+  createdBy?: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+}
+
+export interface AdminBlogStats {
+  totalPosts: number;
+  publishedPosts: number;
+  draftPosts: number;
+  totalViews: number;
+}
+
+export interface AdminBlogListResponse {
+  blogs: AdminBlogPost[];
+  stats: AdminBlogStats;
+  pagination: {
+    total: number;
+    page: number;
+    pages: number;
+    limit: number;
+  };
+}
+
+export async function getAdminBlogs(
+  params?: { status?: string; category?: string; search?: string; page?: number; limit?: number },
+  signal?: AbortSignal
+): Promise<AdminBlogListResponse> {
+  const query = new URLSearchParams();
+  if (params?.status) query.set("status", params.status);
+  if (params?.category) query.set("category", params.category);
+  if (params?.search) query.set("search", params.search);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+
+  const qs = query.toString();
+  const url = `/admin/blogs${qs ? `?${qs}` : ""}`;
+  const res = await apiFetch<AdminBlogPost[]>(url, { signal });
+  const rawStats = (res as any).stats as AdminBlogStats | undefined;
+  const rawPagination = (res as any).pagination;
+
+  return {
+    blogs: res.data || [],
+    stats: rawStats || { totalPosts: 0, publishedPosts: 0, draftPosts: 0, totalViews: 0 },
+    pagination: {
+      total: rawPagination?.total || 0,
+      page: rawPagination?.page || 1,
+      pages: rawPagination?.pages || 1,
+      limit: rawPagination?.limit || 20,
+    },
+  };
+}
+
+export async function getAdminBlog(id: string, signal?: AbortSignal): Promise<AdminBlogPost> {
+  return apiData<AdminBlogPost>(`/admin/blogs/${id}`, { signal });
+}
+
+export async function createAdminBlog(payload: Partial<AdminBlogPost>): Promise<AdminBlogPost> {
+  return apiData<AdminBlogPost>("/admin/blogs", {
+    method: "POST",
+    body: payload
+  });
+}
+
+export async function updateAdminBlog(id: string, payload: Partial<AdminBlogPost>): Promise<AdminBlogPost> {
+  return apiData<AdminBlogPost>(`/admin/blogs/${id}`, {
+    method: "PUT",
+    body: payload
+  });
+}
+
+export async function deleteAdminBlog(id: string): Promise<{ success: boolean; message: string }> {
+  const res = await apiFetch<unknown>(`/admin/blogs/${id}`, {
+    method: "DELETE"
+  });
+  return {
+    success: res.success,
+    message: res.message || "Blog deleted successfully"
+  };
+}
+
+export async function toggleAdminBlogPublish(
+  id: string
+): Promise<{ id: string; status: "draft" | "published"; publishedAt?: string }> {
+  return apiData<{ id: string; status: "draft" | "published"; publishedAt?: string }>(
+    `/admin/blogs/${id}/publish`,
+    { method: "PATCH" }
+  );
+}
+
+export async function toggleAdminBlogFeatured(id: string): Promise<{ id: string; featured: boolean }> {
+  return apiData<{ id: string; featured: boolean }>(`/admin/blogs/${id}/featured`, {
+    method: "PATCH"
+  });
+}
 

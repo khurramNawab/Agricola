@@ -31,11 +31,30 @@ router.get('/', optionalAuth, async (req, res) => {
       featured,
       status = 'active',
       sort = '-createdAt',
-      tags
+      tags,
+      ids
     } = req.query;
 
     // Build query (coerce user input to strings to avoid operator injection)
     const query = { status: String(status) };
+
+    if (ids) {
+      const rawIds = String(ids).split(',').map(s => s.trim()).filter(Boolean);
+      if (rawIds.length === 0) {
+        return res.status(200).json({
+          success: true,
+          data: [],
+          pagination: { current: 1, pages: 0, total: 0, limit: 12 }
+        });
+      }
+      const objectIds = rawIds
+        .filter(id => mongoose.Types.ObjectId.isValid(id))
+        .map(id => new mongoose.Types.ObjectId(id));
+      query.$or = [
+        { _id: { $in: objectIds } },
+        { productId: { $in: rawIds } }
+      ];
+    }
 
     if (category) {
       const categoryId = await resolveCategoryId(String(category));
@@ -62,7 +81,9 @@ router.get('/', optionalAuth, async (req, res) => {
     }
 
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 12));
+    const limitNum = ids
+      ? Math.min(250, Math.max(1, parseInt(limit) || 100))
+      : Math.min(100, Math.max(1, parseInt(limit) || 12));
 
     // Execute query with pagination
     const products = await Product.find(query)
@@ -562,7 +583,7 @@ router.get('/featured/all', optionalAuth, async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: products
+      data: products.map(toProduct)
     });
   } catch (error) {
     console.error('Get featured products error:', error);

@@ -23,12 +23,20 @@ const toProduct = (product) => {
     reviewsCount: p.rating?.count || 0,
     tags: p.tags || [],
     sizes: p.sizes || [],
+    variantStocks: (p.variantStocks || []).map((v) => ({
+      size: v.size,
+      stock: v.stock !== undefined ? v.stock : 0,
+      price: v.price || p.price
+    })),
     images: imageUrls(p.images),
+    image: primaryImage(p.images),
     newlyAdded: !!p.newlyAdded,
     about: p.about || '',
     usageInstructions: p.usageInstructions || '',
-    whyChoose: p.whyChoose || '',
+    stock: p.stock !== undefined ? p.stock : 0,
     inStock: (p.stock || 0) > 0 && p.status === 'active',
+    // isOrganic defaults to true for existing products that don't have the field set yet.
+    isOrganic: p.isOrganic !== false,
     category: p.category && typeof p.category === 'object'
       ? { id: String(p.category._id), name: p.category.name, slug: p.category.slug }
       : (p.category ? String(p.category) : null)

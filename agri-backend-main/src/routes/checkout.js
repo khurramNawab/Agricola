@@ -4,6 +4,7 @@ const { authenticate, optionalAuth } = require('../middleware/auth');
 const { buildSummary, FREE_SHIPPING_THRESHOLD } = require('../utils/pricing');
 const { CouponUtils } = require('../utils/helpers');
 const Address = require('../models/Address');
+const Setting = require('../models/Setting');
 
 // Only Razorpay + COD are active for this phase (per build decision).
 const PAYMENT_METHODS = [
@@ -16,29 +17,119 @@ const PAYMENT_METHODS = [
 // @desc    Available payment methods
 // @route   GET /api/v1/checkout/payment-methods
 // @access  Public
-router.get('/payment-methods', optionalAuth, (req, res) => {
-  res.status(200).json({ success: true, data: PAYMENT_METHODS });
+router.get('/payment-methods', optionalAuth, async (req, res) => {
+  try {
+    const setting = await Setting.findOne({ key: 'global_config' });
+    const isCodEnabled = setting?.enableCod ?? true;
+    const maxCod = setting?.maxCodAmount || 49999;
+    const methods = PAYMENT_METHODS.map((m) => {
+      if (m.id === 'cod') {
+        return {
+          ...m,
+          enabled: isCodEnabled,
+          maxAmount: maxCod,
+          description: isCodEnabled
+            ? `Pay cash on doorstep delivery (up to ₹${maxCod.toLocaleString('en-IN')})`
+            : 'Temporarily disabled'
+        };
+      }
+      return m;
+    });
+    res.status(200).json({ success: true, data: methods });
+  } catch (err) {
+    res.status(200).json({ success: true, data: PAYMENT_METHODS });
+  }
 });
 
-// @desc    Public storefront config (free-shipping threshold, etc.)
+// @desc    Public storefront config (free-shipping threshold, coupon stacking, COD rules, etc.)
 // @route   GET /api/v1/checkout/config
 // @access  Public
-router.get('/config', (req, res) => {
-  res.status(200).json({ success: true, data: { freeShippingThreshold: FREE_SHIPPING_THRESHOLD } });
+router.get('/config', async (req, res) => {
+  try {
+    const setting = await Setting.findOne({ key: 'global_config' });
+    res.status(200).json({
+      success: true,
+      data: {
+        freeShippingThreshold: setting?.freeShippingThreshold || FREE_SHIPPING_THRESHOLD,
+        allowCouponStacking: setting?.allowCouponStacking ?? false,
+        maxStackedCoupons: setting?.maxStackedCoupons || 2,
+        enableCod: setting?.enableCod ?? true,
+        maxCodAmount: setting?.maxCodAmount || 49999
+      }
+    });
+  } catch (err) {
+    res.status(200).json({
+      success: true,
+      data: {
+        freeShippingThreshold: FREE_SHIPPING_THRESHOLD,
+        allowCouponStacking: false,
+        maxStackedCoupons: 2,
+        enableCod: true,
+        maxCodAmount: 49999
+      }
+    });
+  }
 });
 
 // @desc    Validate a discount code → { valid, discount }
 // @route   POST /api/v1/checkout/discount
-// @access  Private
-router.post('/discount', authenticate, async (req, res) => {
+// @access  Public (optionalAuth — guests can preview, full check at checkout)
+router.post('/discount', optionalAuth, async (req, res) => {
   try {
-    const { code, subtotal } = req.body;
+    const { code, subtotal, existingCodes } = req.body;
     if (!code) {
       return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Discount code is required' } });
     }
 
+    const cleanCode = String(code).trim().toUpperCase();
+    const appliedList = Array.isArray(existingCodes) ? existingCodes.map((c) => String(c).trim().toUpperCase()) : [];
+
+    // Check store setting for stacking
+    const setting = await Setting.findOne({ key: 'global_config' });
+    const allowStacking = setting?.allowCouponStacking ?? false;
+    const maxStacked = setting?.maxStackedCoupons || 2;
+
+    if (appliedList.length > 0) {
+      if (!allowStacking) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            valid: false,
+            discount: 0,
+            message: 'Coupon stacking is currently disabled by store policy. Only one coupon can be applied per order.',
+            code: 'STACKING_DISABLED'
+          }
+        });
+      }
+
+      if (appliedList.includes(cleanCode)) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            valid: false,
+            discount: 0,
+            message: 'This coupon is already applied to your cart.',
+            code: 'ALREADY_APPLIED'
+          }
+        });
+      }
+
+      if (appliedList.length >= maxStacked) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            valid: false,
+            discount: 0,
+            message: `You can apply a maximum of ${maxStacked} coupons per order.`,
+            code: 'MAX_COUPONS_REACHED'
+          }
+        });
+      }
+    }
+
     const amount = Number(subtotal) || 0;
-    const result = await CouponUtils.validateCoupon(String(code), amount, req.user._id);
+    // req.user is null for guests — pass undefined so the coupon utility skips per-user limit check
+    const result = await CouponUtils.validateCoupon(cleanCode, amount, req.user?._id);
 
     if (!result.valid) {
       return res.status(200).json({
@@ -54,7 +145,8 @@ router.post('/discount', authenticate, async (req, res) => {
         discount: result.discount,
         type: result.type,
         code: result.code,
-        description: result.description
+        description: result.description,
+        allowStacking
       }
     });
   } catch (error) {

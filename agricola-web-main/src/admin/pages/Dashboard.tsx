@@ -182,174 +182,205 @@ export default function Dashboard() {
   const totalPages = pagination?.totalPages ?? 1;
 
   return (
-    <div className="p-8">
-      <div className="grid grid-cols-2 gap-4 mb-8 md:grid-cols-3 lg:grid-cols-5">
+    <div className="p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      {/* Operational Dispatch Banner */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#eae8e5]/40 to-white p-5 border border-amber-200/80 shadow-sm">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-sm font-bold text-lg">
+              ⚡
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-wider bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full font-bold">
+                  Dispatch Hubs Synchronized
+                </span>
+                <span className="text-xs text-amber-800 font-semibold">Shiprocket & Ekart Logistics Active</span>
+              </div>
+              <p className="text-sm font-bold text-[#1b1c1a] mt-0.5">
+                Automated multi-warehouse routing active across Bihar, Haryana, and regional dispatch hubs.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
         <StatCard
           label="Total Users"
           value={stats ? formatNumber(stats.totalUsers) : "—"}
+          subtext="Registered farm patrons"
+          trend={{ value: "12.4%", isUp: true }}
         />
         <StatCard
           label="Active Users"
           value={stats ? formatNumber(stats.activeUsers) : "—"}
-          badge="this week"
-          valueColor="text-green-500"
+          subtext="30d active repeat buyers"
+          valueColor="text-[#84b817]"
+          trend={{ value: "8.1%", isUp: true }}
         />
         <StatCard
           label="Total Orders"
           value={stats ? formatNumber(stats.totalOrders) : "—"}
-          badge="this week"
+          subtext="Farm harvest direct"
+          trend={{ value: "5.2%", isUp: true }}
         />
         <StatCard
           label="Pending Orders"
           value={stats ? formatNumber(stats.pendingOrders) : "—"}
-          badge="this week"
-          valueColor="text-yellow-500"
+          subtext="Awaiting fulfillment"
+          valueColor="text-amber-600"
         />
         <StatCard
           label="Revenue"
           value={stats ? formatCurrency(stats.revenue) : "—"}
-          badge="this week"
-          valueColor="text-blue-600"
+          subtext="Gross GMV processed"
+          valueColor="text-[#1e3a1f]"
+          trend={{ value: "14.8%", isUp: true }}
         />
       </div>
 
       {notice && (
-        <div className="mb-4 flex items-center justify-between rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="flex items-center justify-between rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800 shadow-sm">
           <span>{notice}</span>
           <button
             onClick={() => setNotice("")}
-            className="font-medium text-amber-700 hover:text-amber-900"
+            className="font-semibold text-amber-700 hover:text-amber-900"
           >
             Dismiss
           </button>
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-sm">
-        <div className="p-6 border-b border-gray-200">
+      <div className="bg-white/90 backdrop-blur-xl rounded-2xl border border-[#1e3a1f]/10 shadow-[0_12px_30px_-8px_rgba(30,58,31,0.06)] overflow-hidden">
+        <div className="p-6 border-b border-gray-100">
           <form
             onSubmit={handleSearch}
             className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4"
           >
             <div className="relative flex-1">
               <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                size={20}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                size={18}
               />
               <input
                 type="text"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search by User Name, Email, or User ID"
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200"
+                placeholder="Search by Customer Name, Email, or Phone..."
+                className="w-full pl-10 pr-4 py-2.5 bg-[#f5f3f0] border border-transparent rounded-xl text-sm font-medium text-[#1b1c1a] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#84b817]/40 focus:bg-white transition-all"
               />
             </div>
             <button
               type="submit"
-              className="px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors"
+              className="px-6 py-2.5 bg-[#1e3a1f] text-white rounded-xl text-sm font-semibold hover:bg-[#2d5a27] transition-all shadow-sm"
             >
               Search
             </button>
             <button
               type="button"
               title="Filters"
-              className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              className="p-2.5 border border-gray-200 rounded-xl hover:bg-[#f5f3f0] transition-colors"
             >
-              <SlidersHorizontal size={20} className="text-gray-600" />
+              <SlidersHorizontal size={18} className="text-gray-600" />
             </button>
           </form>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-[#f5f3f0]/80 border-b border-gray-100">
               <tr>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-700">User ID</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-700">Name</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-700">Email</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-700">Phone</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-700">Join Date</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-700">Orders</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-gray-700"></th>
+                <th className="px-6 py-3.5 text-left text-xs uppercase font-bold text-[#434936] tracking-wider">User ID</th>
+                <th className="px-6 py-3.5 text-left text-xs uppercase font-bold text-[#434936] tracking-wider">Customer</th>
+                <th className="px-6 py-3.5 text-left text-xs uppercase font-bold text-[#434936] tracking-wider">Email</th>
+                <th className="px-6 py-3.5 text-left text-xs uppercase font-bold text-[#434936] tracking-wider">Phone</th>
+                <th className="px-6 py-3.5 text-left text-xs uppercase font-bold text-[#434936] tracking-wider">Joined</th>
+                <th className="px-6 py-3.5 text-left text-xs uppercase font-bold text-[#434936] tracking-wider">Orders</th>
+                <th className="px-6 py-3.5 text-right text-xs uppercase font-bold text-[#434936] tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-100 text-sm">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                    Loading users…
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500 font-medium">
+                    Loading customer data…
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-red-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-red-500 font-medium">
                     {error}
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500 font-medium">
                     {search
-                      ? `No users match "${search}".`
-                      : "No users found."}
+                      ? `No patrons match "${search}".`
+                      : "No customer records found."}
                   </td>
                 </tr>
               ) : (
                 users.map((user) => (
                   <tr
                     key={user.id}
-                    className={`transition-colors hover:bg-gray-50 ${
+                    className={`transition-colors hover:bg-[#f5f3f0]/50 ${
                       user.status === "banned" ? "bg-red-50/40" : ""
                     }`}
                   >
-                    <td className="px-6 py-4 text-sm text-gray-900">{user.userId}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
+                    <td className="px-6 py-4 font-mono text-xs font-semibold text-[#1e3a1f]">{user.userId}</td>
+                    <td className="px-6 py-4 font-semibold text-[#1b1c1a]">
                       <span className="flex items-center gap-2">
                         {user.name}
                         {user.status === "banned" && (
-                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-600">
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">
                             Banned
                           </span>
                         )}
                         {user.status === "inactive" && (
-                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-500">
                             Inactive
                           </span>
                         )}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{user.email || "—"}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{formatPhone(user.phone)}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{formatDate(user.joinDate)}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{user.orders}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
+                    <td className="px-6 py-4 text-gray-600">{user.email || "—"}</td>
+                    <td className="px-6 py-4 text-gray-600 font-mono text-xs">{formatPhone(user.phone)}</td>
+                    <td className="px-6 py-4 text-gray-600">{formatDate(user.joinDate)}</td>
+                    <td className="px-6 py-4 font-bold text-[#1b1c1a]">
+                      <span className="inline-flex items-center justify-center px-2.5 py-0.5 rounded-full bg-[#c9ecc4]/60 text-[#4e6c4c] text-xs font-bold">
+                        {user.orders}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => setEditing(user)}
                           title="Edit"
-                          className="p-1.5 hover:bg-gray-100 rounded transition-colors"
+                          className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600 hover:text-[#1e3a1f]"
                         >
-                          <Edit size={16} className="text-gray-600" />
+                          <Edit size={16} />
                         </button>
                         <button
                           onClick={() => handleToggleBan(user)}
                           disabled={busyId === user.id}
                           title={user.status === "banned" ? "Unban" : "Ban"}
-                          className="p-1.5 hover:bg-gray-100 rounded transition-colors disabled:opacity-40"
+                          className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40"
                         >
                           {user.status === "banned" ? (
                             <CircleCheck size={16} className="text-green-600" />
                           ) : (
-                            <Ban size={16} className="text-gray-600" />
+                            <Ban size={16} className="text-gray-500 hover:text-amber-600" />
                           )}
                         </button>
                         <button
                           onClick={() => handleDelete(user)}
                           disabled={busyId === user.id}
                           title="Delete"
-                          className="p-1.5 hover:bg-gray-100 rounded transition-colors disabled:opacity-40"
+                          className="p-2 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-40 text-red-500"
                         >
-                          <Trash2 size={16} className="text-red-500" />
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </td>

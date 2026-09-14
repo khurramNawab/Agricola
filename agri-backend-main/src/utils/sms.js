@@ -26,7 +26,7 @@ const toLocalNumber = (phone) => {
 const sendOtpSms = async (phone, otp) => {
   const apiKey = process.env.FAST2SMS_API_KEY;
   const number = toLocalNumber(phone);
-  const devMode = process.env.OTP_DEV_MODE === 'true';
+  const devMode = process.env.OTP_DEV_MODE === 'true' && process.env.NODE_ENV !== 'production';
 
   // Dev sandbox: skip the real provider and log the OTP. Use when the Fast2SMS
   // account isn't verified/funded yet, or for local testing. Also the fallback
@@ -43,13 +43,15 @@ const sendOtpSms = async (phone, otp) => {
   // OTP content template are registered. Set FAST2SMS_DLT_SENDER_ID (the approved
   // 3-6 char sender/header) and FAST2SMS_DLT_MESSAGE_ID (the template/Message ID
   // from DLT Manager); the OTP value fills the template's single {#var#}.
-  // Without them we fall back to the legacy 'otp' route (needs website verification).
+  // When not set, we use Fast2SMS Quick SMS ('q') route which delivers immediately
+  // without blocking on domain/website verification.
   const senderId = process.env.FAST2SMS_DLT_SENDER_ID;
   const messageId = process.env.FAST2SMS_DLT_MESSAGE_ID;
+  const otpMessage = `Your AgriCola verification OTP is ${otp}. Valid for 5 minutes. Do not share with anyone.`;
   const payload =
     senderId && messageId
       ? { route: 'dlt', sender_id: senderId, message: messageId, variables_values: String(otp), numbers: number }
-      : { route: 'otp', variables_values: String(otp), numbers: number };
+      : { route: 'q', message: otpMessage, language: 'english', numbers: number };
 
   let response;
   try {
@@ -61,14 +63,41 @@ const sendOtpSms = async (phone, otp) => {
       timeout: 15000
     });
   } catch (err) {
-    // Fast2SMS returns the real reason in the 4xx body (e.g. account not
-    // verified, insufficient balance). Surface it instead of a raw axios error.
-    const data = err.response?.data;
-    const raw = data?.message || err.message || 'Failed to send OTP SMS';
-    const e = new Error(Array.isArray(raw) ? raw.join(', ') : raw);
-    e.code = 'SMS_SEND_FAILED';
-    e.providerStatus = data?.status_code;
-    throw e;
+    // If DLT route failed (e.g. pending template approval or invalid header), auto-fallback to Quick SMS
+    if (payload.route === 'dlt') {
+      try {
+        console.warn(`[SMS] DLT route attempt failed (${err.response?.data?.message || err.message}). Falling back to Quick SMS route.`);
+        const fallbackPayload = {
+          route: 'q',
+          message: otpMessage,
+          language: 'english',
+          numbers: number
+        };
+        response = await axios.post(FAST2SMS_URL, fallbackPayload, {
+          headers: {
+            authorization: apiKey,
+            'Content-Type': 'application/json'
+          },
+          timeout: 15000
+        });
+      } catch (fallbackErr) {
+        const data = fallbackErr.response?.data;
+        const raw = data?.message || fallbackErr.message || 'Failed to send OTP SMS';
+        const e = new Error(Array.isArray(raw) ? raw.join(', ') : raw);
+        e.code = 'SMS_SEND_FAILED';
+        e.providerStatus = data?.status_code;
+        throw e;
+      }
+    } else {
+      // Fast2SMS returns the real reason in the 4xx body (e.g. account not
+      // verified, insufficient balance). Surface it instead of a raw axios error.
+      const data = err.response?.data;
+      const raw = data?.message || err.message || 'Failed to send OTP SMS';
+      const e = new Error(Array.isArray(raw) ? raw.join(', ') : raw);
+      e.code = 'SMS_SEND_FAILED';
+      e.providerStatus = data?.status_code;
+      throw e;
+    }
   }
 
   // Fast2SMS responds with { return: true, request_id, message: [...] }

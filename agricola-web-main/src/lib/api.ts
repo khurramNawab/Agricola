@@ -11,7 +11,7 @@ export const BASE_URL = (
 const TOKEN_KEY = "admin_token";
 
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY) || "dev-admin-bypass-token";
+  return localStorage.getItem(TOKEN_KEY);
 }
 
 export function setToken(token: string): void {
