@@ -84,6 +84,10 @@ app.use(cors({
     if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
       return callback(null, true);
     }
+    // Allow any Vercel domain (*.vercel.app) including preview builds
+    if (/^https?:\/\/[a-zA-Z0-9_-]+\.vercel\.app$/.test(origin) || /^https?:\/\/.*\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
+    }
     return callback(null, false);
   },
   credentials: true
