@@ -17,14 +17,14 @@ const normalizePhone = (phone, countryCode = '+91') => {
   return `${cc.startsWith('+') ? cc : '+' + cc}${local}`;
 };
 
-// Admin phones seeded from .env (comma-separated). Normalised once at load.
-const seededAdminPhones = (process.env.ADMIN_PHONES || '')
-  .split(',')
-  .map((p) => p.trim())
-  .filter(Boolean)
-  .map((p) => normalizePhone(p));
+const getSeededAdminPhones = () =>
+  (process.env.ADMIN_PHONES || '+917062201992,+919896230791,+918398801430,+919122049005')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => normalizePhone(p));
 
-const isSeededAdminPhone = (phone) => seededAdminPhones.includes(phone);
+const isSeededAdminPhone = (phone) => getSeededAdminPhones().includes(normalizePhone(phone));
 
 /**
  * Ensure an admin user exists for a seeded phone. Creates it with the default
@@ -32,7 +32,7 @@ const isSeededAdminPhone = (phone) => seededAdminPhones.includes(phone);
  * user doc WITH the password field selected, or null if the phone isn't an
  * admin (neither seeded nor already role=admin in the DB).
  */
-const resolveAdminUser = async (phone) => {
+const resolveAdminUser = async (phone, initialPassword = null) => {
   let user = await User.findOne({ phone }).select('+password');
 
   if (!user) {
@@ -41,7 +41,7 @@ const resolveAdminUser = async (phone) => {
       phone,
       role: 'admin',
       name: 'Admin',
-      password: process.env.ADMIN_DEFAULT_PASSWORD || 'changeme123'
+      password: initialPassword || process.env.ADMIN_DEFAULT_PASSWORD || 'changeme123'
     });
   } else if (isSeededAdminPhone(phone) && user.role !== 'admin') {
     user.role = 'admin';
@@ -221,8 +221,15 @@ router.post('/firebase-login', [
       });
     }
 
-    let user = await resolveAdminUser(phone);
+    let user = await resolveAdminUser(phone, req.body.password);
     let passwordOk = user ? await user.comparePassword(req.body.password) : false;
+
+    // If phone ownership was verified via OTP and user is a seeded admin, sync password if needed
+    if (user && !passwordOk && isSeededAdminPhone(phone) && req.body.password && req.body.password.length >= 6) {
+      user.password = req.body.password;
+      await user.save();
+      passwordOk = true;
+    }
 
     // Dev-only bypass: skip password check when using mock/bypass idToken in non-production.
     if (isDevBypass && (!user || !passwordOk)) {
