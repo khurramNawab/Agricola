@@ -16,8 +16,13 @@ export const isValidPincode = (pincode: string): boolean =>
 
 export function getSavedPincode(): string {
   try {
-    const saved = localStorage.getItem(PINCODE_KEY) ?? "";
-    return isValidPincode(saved) ? saved.trim() : "";
+    const saved = (localStorage.getItem(PINCODE_KEY) ?? "").trim();
+    if (saved === "248011") {
+      localStorage.removeItem(PINCODE_KEY);
+      localStorage.removeItem(LOCATION_KEY);
+      return "";
+    }
+    return isValidPincode(saved) ? saved : "";
   } catch {
     return "";
   }
@@ -25,7 +30,7 @@ export function getSavedPincode(): string {
 
 export function savePincode(pincode: string): void {
   const clean = pincode.trim();
-  if (!isValidPincode(clean)) return;
+  if (!isValidPincode(clean) || clean === "248011") return;
   try {
     localStorage.setItem(PINCODE_KEY, clean);
   } catch {
@@ -38,6 +43,11 @@ export function getSavedLocation(): DeliveryLocation | null {
     const raw = localStorage.getItem(LOCATION_KEY);
     if (!raw) return null;
     const loc = JSON.parse(raw) as DeliveryLocation;
+    if (loc?.pincode === "248011") {
+      localStorage.removeItem(PINCODE_KEY);
+      localStorage.removeItem(LOCATION_KEY);
+      return null;
+    }
     if (loc && loc.pincode && isValidPincode(loc.pincode)) {
       return loc;
     }

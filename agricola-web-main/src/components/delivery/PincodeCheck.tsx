@@ -53,7 +53,10 @@ function describe(r: DeliveryQuote, variant: "cart" | "product"): string {
  * returning shopper sees their answer without retyping.
  */
 export default function PincodeCheck({ variant, items, onResult, className = "" }: PincodeCheckProps) {
-  const [pin, setPin] = useState(getSavedPincode);
+  const [pin, setPin] = useState(() => {
+    const s = getSavedPincode();
+    return s === "248011" ? "" : s;
+  });
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
   const abortRef = useRef<AbortController | null>(null);
@@ -109,7 +112,7 @@ export default function PincodeCheck({ variant, items, onResult, className = "" 
   // the quoted charge never lags behind the lines it was computed for.
   useEffect(() => {
     const saved = getSavedPincode();
-    if (saved) check(saved);
+    if (saved && saved !== "248011") check(saved);
     return () => abortRef.current?.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemsKey]);
