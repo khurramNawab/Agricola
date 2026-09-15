@@ -352,7 +352,7 @@ export default function OrderDetails() {
                   <span className="material-symbols-outlined text-[#486800] text-lg">verified</span>
                   <span className="font-medium">All batches certified for purity, zero pesticides &amp; heavy metals.</span>
                 </div>
-                <span className="text-[#486800] font-bold">FSSAI &amp; Jaivik Bharat Traceable</span>
+                <span className="text-[#486800] font-bold">100% Certified Pure &amp; Traceable</span>
               </div>
             </div>
 

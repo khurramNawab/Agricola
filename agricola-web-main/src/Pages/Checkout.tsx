@@ -969,7 +969,7 @@ export default function Checkout() {
                 </div>
                 <div>
                   <span className="font-bold text-[#1e3a1f] block text-xs">Purity Guarantee</span>
-                  <span className="text-[11px] text-gray-400">Jaivik Bharat &amp; NPOP Certified</span>
+                  <span className="text-[11px] text-gray-400">100% Quality &amp; Purity Certified</span>
                 </div>
               </div>
             </div>

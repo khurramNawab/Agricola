@@ -49,10 +49,10 @@ const legalLinks = [
 ];
 
 const certifications = [
-  "Jaivik Bharat",
-  "India Organic",
-  "USDA Organic",
-  "NPOP Certified",
+  "100% Certified Organic",
+  "Quality Tested & Verified",
+  "Lab Certified Pure",
+  "Direct Farm Certified",
 ];
 
 const Footer: React.FC = () => {
