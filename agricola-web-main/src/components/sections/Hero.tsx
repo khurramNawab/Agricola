@@ -341,7 +341,7 @@ const Hero: React.FC = () => {
                     workspace_premium
                   </span>
                   <span className="text-xs font-bold text-[#1b1c1a]">
-                    Jaivik Bharat Certified
+                    100% Certified Organic
                   </span>
                 </div>
                 <div className="flex items-center gap-2 bg-white/70 backdrop-blur-sm px-3 py-2 rounded-xl">
@@ -349,7 +349,7 @@ const Hero: React.FC = () => {
                     science
                   </span>
                   <span className="text-xs font-bold text-[#1b1c1a]">
-                    Zero Pesticides (NABL Lab)
+                    Zero Pesticides (Lab Tested)
                   </span>
                 </div>
                 <div className="flex items-center gap-2 bg-white/70 backdrop-blur-sm px-3 py-2 rounded-xl">

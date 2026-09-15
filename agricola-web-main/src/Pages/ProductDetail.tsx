@@ -69,17 +69,9 @@ export default function ProductDetail() {
 
   // Modals
   // Pincode check state (Live carrier serviceability: Shiprocket / Ekart)
-  const [pincode, setPincode] = useState("248011");
+  const [pincode, setPincode] = useState("");
   const [checkingPincode, setCheckingPincode] = useState(false);
-  const [pincodeResult, setPincodeResult] = useState<PincodeServiceability | null>({
-    pincode: "248011",
-    serviceable: true,
-    city: "Dehradun",
-    state: "Uttarakhand",
-    cod: true,
-    provider: "shiprocket",
-    eta: { date: "Sep 15, 2026", days: 2 },
-  });
+  const [pincodeResult, setPincodeResult] = useState<PincodeServiceability | null>(null);
   const [pincodeError, setPincodeError] = useState("");
 
   // Bundle Add state
@@ -981,7 +973,7 @@ export default function ProductDetail() {
                     />
                     <div className="absolute bottom-0 inset-x-0 p-5 bg-gradient-to-t from-black/80 via-black/30 to-transparent text-white">
                       <span className="text-[10px] text-[#bcf455] font-black uppercase tracking-wider">
-                        GI Certificate #377
+                        Geographical Indication (GI) Certified
                       </span>
                       <p className="text-xs sm:text-sm font-bold mt-1">
                         Geographical Indication Protected Heritage Makhana
@@ -1000,7 +992,7 @@ export default function ProductDetail() {
                   <div className="flex items-center justify-between pb-3 mb-4 border-b border-gray-200">
                     <div>
                       <h3 className="text-sm font-black text-[#1e3a1f]">Nutrition Table (Per 100g Serving)</h3>
-                      <span className="text-[11px] text-gray-500">Standardized NABL Accredited Laboratory Assay</span>
+                      <span className="text-[11px] text-gray-500">Certified Laboratory Assay & Analysis</span>
                     </div>
                     <span className="bg-[#c9ecc4] text-[#1e3a1f] px-3 py-1 rounded-full text-xs font-black">
                       347 kcal
@@ -1048,7 +1040,7 @@ export default function ProductDetail() {
                   <div className="bg-[#f5f3f0] p-6 rounded-3xl shadow-2xs flex flex-col gap-3">
                     <div className="flex items-center gap-2 text-[#486800] font-black text-sm">
                       <ShieldCheck size={18} />
-                      <span>NABL Batch Test Report #NABL-89410</span>
+                      <span>Certified Batch Test Report</span>
                     </div>
                     <p className="text-xs text-[#434936] leading-relaxed">
                       Every batch is third-party screened for 210 pesticide residues, heavy metals (lead, cadmium, mercury), and moisture retention.
@@ -1057,7 +1049,7 @@ export default function ProductDetail() {
                       <div className="flex items-center gap-2.5">
                         <FileText size={20} className="text-rose-600" />
                         <div className="flex flex-col">
-                          <span className="text-xs font-bold text-[#1e3a1f]">COA_Makhana_Feb2025.pdf</span>
+                          <span className="text-xs font-bold text-[#1e3a1f]">Batch_Analysis_Report.pdf</span>
                           <span className="text-[10px] text-gray-400">1.4 MB • Signed by Lead Biochemist</span>
                         </div>
                       </div>

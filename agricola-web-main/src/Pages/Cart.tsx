@@ -197,7 +197,7 @@ export default function Cart() {
             </div>
             <div className="flex items-center gap-1.5 text-[#486800] text-xs font-bold bg-[#c9ecc4]/40 px-3 py-1.5 rounded-xl">
               <span className="material-symbols-outlined text-base">verified_user</span>
-              <span>FSSAI &amp; Jaivik Bharat Traceable</span>
+              <span>100% Certified Purity &amp; Traceable</span>
             </div>
           </div>
 

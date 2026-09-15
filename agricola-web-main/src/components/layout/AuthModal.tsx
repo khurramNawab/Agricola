@@ -40,7 +40,7 @@ const features = [
   {
     icon: Leaf,
     title: "Batch Traceable",
-    desc: "Every pack verified with satellite soil logs & NABL lab reports.",
+    desc: "Every pack verified with certified purity logs & laboratory testing reports.",
     accent: "text-lime-400 bg-lime-400/10 border-lime-400/20",
   },
   {
