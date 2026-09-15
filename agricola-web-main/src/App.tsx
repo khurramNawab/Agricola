@@ -6,6 +6,13 @@ import ScrollToTop from "./components/common/ScrollToTop";
 const App = () => {
   // Prevent mouse wheel from rapidly changing number values in input[type=number] across the entire app
   useEffect(() => {
+    try {
+      if (localStorage.getItem("agricola.pincode") === "248011") {
+        localStorage.removeItem("agricola.pincode");
+        localStorage.removeItem("agricola.deliveryLocation");
+      }
+    } catch {}
+
     const handleWheel = () => {
       if (document.activeElement && (document.activeElement as HTMLInputElement).type === "number") {
         (document.activeElement as HTMLInputElement).blur();
