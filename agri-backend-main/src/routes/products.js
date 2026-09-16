@@ -29,14 +29,14 @@ router.get('/', optionalAuth, async (req, res) => {
       minPrice,
       maxPrice,
       featured,
-      status = 'active',
+      status,
       sort = '-createdAt',
       tags,
       ids
     } = req.query;
 
     // Build query (coerce user input to strings to avoid operator injection)
-    const query = { status: String(status) };
+    const query = status ? { status: String(status) } : { status: { $in: ['active', 'out_of_stock'] } };
 
     if (ids) {
       const rawIds = String(ids).split(',').map(s => s.trim()).filter(Boolean);

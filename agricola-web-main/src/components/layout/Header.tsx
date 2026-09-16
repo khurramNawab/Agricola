@@ -122,7 +122,7 @@ const Header: React.FC = () => {
                 <span className="material-symbols-outlined text-sm text-gray-500">arrow_drop_down</span>
               </div>
               <span className="flex-1 text-xs sm:text-sm text-gray-400 group-hover:text-gray-600 transition-colors truncate">
-                Search cold-pressed oils, Mithila GI makhana, Lakadong turmeric...
+                Search Mithila GI makhana, whole leaf green tea, herbal tea...
               </span>
               <span className="material-symbols-outlined text-[#486800] text-xl font-bold ml-2">search</span>
             </div>
