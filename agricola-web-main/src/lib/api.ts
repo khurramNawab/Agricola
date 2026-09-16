@@ -175,9 +175,13 @@ async function parseEnvelope<T>(
 
   if (!res.ok || !payload || payload.success === false) {
     const error = payload?.error;
+    const fallbackMessage =
+      res.status === 429
+        ? "Too many requests. Please wait a moment and try again."
+        : `Request failed (${res.status})`;
     throw new ApiError(
-      error?.message || `Request failed (${res.status})`,
-      error?.code || "REQUEST_FAILED",
+      error?.message || fallbackMessage,
+      error?.code || (res.status === 429 ? "TOO_MANY_REQUESTS" : "REQUEST_FAILED"),
       res.status,
       error?.details,
       typeof payload?.retryAfter === "number" ? payload.retryAfter : undefined
