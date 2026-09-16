@@ -287,7 +287,8 @@ router.post('/firebase-login', [
 // @desc    One-click credential bypass for admin login (demo & testing)
 // @access  Public
 router.post('/bypass-login', async (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
+  const isLocal = req.hostname === 'localhost' || req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
+  if (process.env.NODE_ENV === 'production' && !isLocal) {
     return res.status(403).json({
       success: false,
       error: { code: 'FORBIDDEN', message: 'Bypass login is strictly disabled in production mode.' }
