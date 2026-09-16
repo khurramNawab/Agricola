@@ -184,6 +184,7 @@ export default function Login() {
                     setBusy(true);
                     try {
                       await bypassLogin();
+                      navigate("/admin", { replace: true });
                     } catch (e) {
                       setError(authErrorText(e, "Dev login failed."));
                     } finally {
