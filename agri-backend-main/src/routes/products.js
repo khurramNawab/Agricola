@@ -340,6 +340,8 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
       category,
       subcategory,
       images,
+      video,
+      videoUrl,
       stock,
       sku,
       weight,
@@ -392,6 +394,7 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
       }
     }
 
+    const resolvedVideo = video || (videoUrl ? { url: videoUrl } : undefined);
     const product = new Product({
       name,
       description,
@@ -400,6 +403,8 @@ router.post('/', authenticate, requireAdmin, async (req, res) => {
       category,
       subcategory,
       images,
+      video: resolvedVideo,
+      videoUrl: videoUrl || video?.url,
       stock: stock || 0,
       sku,
       weight,

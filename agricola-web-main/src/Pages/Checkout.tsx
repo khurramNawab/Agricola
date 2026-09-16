@@ -972,6 +972,21 @@ export default function Checkout() {
                   <span className="text-[11px] text-gray-400">100% Quality &amp; Purity Certified</span>
                 </div>
               </div>
+              <Link
+                to="/return-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 p-1.5 -m-1.5 rounded-2xl hover:bg-gray-50 transition-colors group"
+                title="Review our 48-Hour Return & Refund Policy"
+              >
+                <div className="w-8 h-8 rounded-xl bg-[#c9ecc4] flex items-center justify-center text-[#486800] shrink-0 font-bold">
+                  <span className="material-symbols-outlined text-base group-hover:rotate-[-45deg] transition-transform">published_with_changes</span>
+                </div>
+                <div>
+                  <span className="font-bold text-[#1e3a1f] block text-xs group-hover:text-[#486800]">Easy Returns &amp; Replacements</span>
+                  <span className="text-[11px] text-[#486800] underline">View 48-Hour Return Policy</span>
+                </div>
+              </Link>
             </div>
           </div>
         </div>

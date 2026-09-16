@@ -238,11 +238,14 @@ export default function Coupons() {
 
   const handleDelete = async (coupon: AdminCoupon, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm(`Are you sure you want to permanently delete coupon "${coupon.code}"?`)) {
+    if (!window.confirm(`Are you sure you want to delete coupon "${coupon.code}"?`)) {
       return;
     }
     try {
-      await deleteAdminCoupon(coupon.id);
+      const res = await deleteAdminCoupon(coupon.id);
+      if (res?.message) {
+        alert(res.message);
+      }
       fetchCoupons();
     } catch (err: any) {
       alert(err.message || "Failed to delete coupon");

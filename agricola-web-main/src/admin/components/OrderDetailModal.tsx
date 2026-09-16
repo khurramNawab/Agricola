@@ -3,6 +3,7 @@ import {
   updateOrderStatus,
   downloadInvoice,
   downloadLabel,
+  cloneAdminOrder,
   getOrderWarehouseAvailability,
   assignOrderWarehouse,
   ORDER_STATUS_VALUES,
@@ -160,6 +161,28 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
     }
   };
 
+  const [cloning, setCloning] = useState(false);
+  const [cloneSuccess, setCloneSuccess] = useState("");
+
+  const handleClone = async () => {
+    if (!window.confirm(`Are you sure you want to clone Order #${order.orderId}? This will create a fresh pending order with the same customer and items.`)) {
+      return;
+    }
+    setError("");
+    setCloneSuccess("");
+    setCloning(true);
+    try {
+      const cloned = await cloneAdminOrder(order.id);
+      setCloneSuccess(`Order cloned successfully as #${cloned.orderId}!`);
+      onStatusUpdated(cloned);
+    } catch (err) {
+      console.error("Order clone error:", err);
+      setError(err instanceof Error ? err.message : "Failed to clone order");
+    } finally {
+      setCloning(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs font-sans">
       <div className="relative flex flex-col w-full max-w-4xl max-h-[92vh] rounded-3xl bg-white shadow-2xl overflow-hidden border border-gray-100">
@@ -224,6 +247,16 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
               <span className="material-symbols-outlined text-sm text-[#486800]">qr_code_2</span>
               <span>AWB Courier Label</span>
             </button>
+            <button
+              type="button"
+              disabled={cloning}
+              onClick={handleClone}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-emerald-50 text-[#1e3a1f] font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-50 border border-[#84b817]/40"
+              title="Duplicate this order into a new pending order"
+            >
+              <span className="material-symbols-outlined text-sm text-[#486800]">content_copy</span>
+              <span>{cloning ? "Cloning…" : "Clone Order"}</span>
+            </button>
           </div>
         </div>
 
@@ -238,6 +271,23 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
               type="button"
               onClick={() => setError("")}
               className="text-red-500 hover:text-red-800 p-1"
+            >
+              <span className="material-symbols-outlined text-sm">close</span>
+            </button>
+          </div>
+        )}
+
+        {/* Clone Success Alert Banner */}
+        {cloneSuccess && (
+          <div className="mx-6 mt-4 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs font-semibold flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-base text-emerald-600">check_circle</span>
+              <span>{cloneSuccess}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCloneSuccess("")}
+              className="text-emerald-500 hover:text-emerald-800 p-1"
             >
               <span className="material-symbols-outlined text-sm">close</span>
             </button>

@@ -60,6 +60,8 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
   const [images, setImages] = useState<(ProductImage | null)[]>(
     Array(IMAGE_SLOTS).fill(null)
   );
+  const [videoUrl, setVideoUrl] = useState<string>('');
+  const [videoKey, setVideoKey] = useState<string>('');
   const [warehouses, setWarehouses] = useState<AdminWarehouse[]>([]);
   const [whStockMap, setWhStockMap] = useState<Record<string, string>>({});
   const [variantStocksMap, setVariantStocksMap] = useState<Record<string, string>>({});
@@ -135,9 +137,13 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
         imgs[i] = im;
       });
       setImages(imgs);
+      setVideoUrl(initial.video?.url || initial.videoUrl || '');
+      setVideoKey(initial.video?.publicId || '');
     } else {
       setFormData(emptyForm());
       setImages(Array(IMAGE_SLOTS).fill(null));
+      setVideoUrl('');
+      setVideoKey('');
       setWhStockMap({});
       setVariantStocksMap({});
       setVariantPricesMap({});
@@ -152,6 +158,8 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
   const reset = () => {
     setFormData(emptyForm());
     setImages(Array(IMAGE_SLOTS).fill(null));
+    setVideoUrl('');
+    setVideoKey('');
     setWhStockMap({});
     setVariantStocksMap({});
     setVariantPricesMap({});
@@ -211,6 +219,8 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
         usageInstructions: formData.usageInstructions,
         whyChoose: formData.whyChoose,
         images: images.filter((im): im is ProductImage => !!im),
+        video: videoUrl.trim() ? { url: videoUrl.trim(), publicId: videoKey || undefined } : undefined,
+        videoUrl: videoUrl.trim() || undefined,
       });
 
       // Update per-warehouse stock if editing existing product
@@ -315,6 +325,49 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
                   />
                 );
               })}
+            </div>
+
+            {/* Product Video Section (Myntra / Flipkart Style) */}
+            <div className="rounded-xl border border-gray-200 p-4 bg-gray-50/50 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-green-700 text-lg">smart_display</span>
+                  <span>Product Video / Reel (Myntra &amp; Flipkart Style)</span>
+                </label>
+                <span className="text-xs text-gray-400">MP4, WebM, MOV (Max 50MB)</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                <ImageDropzone
+                  folder="products/videos"
+                  caption="(Upload Video File)"
+                  value={videoUrl || null}
+                  accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                  isVideo={true}
+                  onUploaded={(file) => {
+                    setVideoUrl(file.url);
+                    setVideoKey(file.key);
+                  }}
+                  onRemove={() => {
+                    setVideoUrl('');
+                    setVideoKey('');
+                  }}
+                />
+                <div className="space-y-2">
+                  <label className="block text-xs font-medium text-gray-600">
+                    Or Direct Video URL (CDN / S3 / Direct Link)
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://example.com/demo.mp4"
+                    value={videoUrl}
+                    onChange={(e) => setVideoUrl(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-200 bg-white"
+                  />
+                  <p className="text-[11px] text-gray-500 leading-relaxed">
+                    Appears directly in the product image gallery with a Play button thumbnail.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="space-y-4">
