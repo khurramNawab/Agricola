@@ -95,23 +95,57 @@ app.use(cors({
 
 const isLoopback = (ip) => !ip || ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
 
+// Minimum safe limit: prevent accidental throttling from legacy RATE_LIMIT_MAX_REQUESTS=100
+const configuredLimit = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10);
+const generalMax = (!isNaN(configuredLimit) && configuredLimit >= 5000) ? configuredLimit : 10000;
+
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 10000,
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000, // 15 minutes
+  max: generalMax,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => isLoopback(req.ip)
+  skip: (req) => {
+    if (isLoopback(req.ip)) return true;
+    // Admins and staff managing products/inventory/orders must NEVER be rate limited
+    if (req.originalUrl && (req.originalUrl.includes('/admin') || req.originalUrl.includes('/upload'))) return true;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) return true;
+    return false;
+  },
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      error: {
+        code: 'TOO_MANY_REQUESTS',
+        message: 'Too many requests. Please try again shortly.'
+      }
+    });
+  }
 });
 app.use(limiter);
 
-// Stricter limiter for auth/login/OTP endpoints to slow credential brute-forcing.
-// Applied per-route below so raising the general cap doesn't weaken login protection.
+// Stricter limiter for public auth/login/OTP endpoints to slow credential brute-forcing.
+const configuredAuthLimit = parseInt(process.env.AUTH_RATE_LIMIT_MAX, 10);
+const authMax = (!isNaN(configuredAuthLimit) && configuredAuthLimit >= 100) ? configuredAuthLimit : 1000;
+
 const authLimiter = rateLimit({
-  windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.AUTH_RATE_LIMIT_MAX) || 500,
+  windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS, 10) || 15 * 60 * 1000, // 15 minutes
+  max: authMax,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => isLoopback(req.ip)
+  skip: (req) => {
+    if (isLoopback(req.ip)) return true;
+    if (req.originalUrl && req.originalUrl.includes('/admin')) return true;
+    return false;
+  },
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      error: {
+        code: 'TOO_MANY_ATTEMPTS',
+        message: 'Too many authentication attempts. Please wait a moment.'
+      }
+    });
+  }
 });
 
 // Body parsing middleware. The `verify` hook stashes the raw body buffer so
