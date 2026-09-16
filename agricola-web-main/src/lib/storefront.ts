@@ -40,6 +40,8 @@ export interface StorefrontCategory {
   slug: string;
   image: string | null;
   productCount: number;
+  description?: string | null;
+  minPrice?: number | null;
 }
 
 interface RawProduct {
@@ -70,8 +72,10 @@ interface RawCategory {
   id: string;
   name: string;
   slug: string;
+  description?: string | null;
   image?: string | { url: string } | null;
   productCount?: number;
+  minPrice?: number | null;
 }
 
 const firstImage = (images?: (string | { url: string })[]): string | null => {
@@ -124,6 +128,8 @@ const mapCategory = (c: RawCategory): StorefrontCategory => ({
   slug: c.slug,
   image: c.image ? (typeof c.image === "string" ? c.image : c.image.url) : null,
   productCount: c.productCount ?? 0,
+  description: c.description ?? null,
+  minPrice: typeof c.minPrice === 'number' ? c.minPrice : null,
 });
 
 export async function getProducts(

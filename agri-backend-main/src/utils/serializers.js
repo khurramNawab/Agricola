@@ -71,8 +71,10 @@ const toCategory = (category) => {
     id: String(c._id),
     name: c.name,
     slug: c.slug,
+    description: c.description || null,
     image: c.image?.url || null,
-    productCount: typeof c.productCount === 'number' ? c.productCount : (c.productCount || 0)
+    productCount: typeof c.productCount === 'number' ? c.productCount : (c.productCount || 0),
+    minPrice: typeof c.minPrice === 'number' ? c.minPrice : null
   };
 };
 

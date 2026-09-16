@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Category = require('../models/Category');
+const Product = require('../models/Product');
 const { authenticate, requireAdmin, optionalAuth } = require('../middleware/auth');
 const { toCategory } = require('../utils/serializers');
 
@@ -47,9 +48,26 @@ router.get('/', optionalAuth, async (req, res) => {
 
     const total = await Category.countDocuments(query);
 
+    // Aggregate minimum product price for each active category
+    const minPrices = await Product.aggregate([
+      { $match: { status: { $in: ['active', 'out_of_stock'] } } },
+      { $group: { _id: '$category', minPrice: { $min: '$price' }, productCount: { $sum: 1 } } }
+    ]);
+    const priceMap = new Map(minPrices.map((m) => [String(m._id), m]));
+
+    const data = categories.map((cat) => {
+      const serialized = toCategory(cat);
+      const stats = priceMap.get(String(cat._id));
+      if (stats) {
+        serialized.minPrice = stats.minPrice;
+        if (!serialized.productCount) serialized.productCount = stats.productCount;
+      }
+      return serialized;
+    });
+
     res.status(200).json({
       success: true,
-      data: categories.map(toCategory),
+      data,
       pagination: {
         current: pageNum,
         pages: Math.ceil(total / limitNum),
