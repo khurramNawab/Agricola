@@ -238,10 +238,14 @@ if (process.env.NODE_ENV !== 'test') {
     });
 
     const shutdown = () => {
-      server.close(() => {
-        mongoose.connection.close(false, () => {
+      server.close(async () => {
+        try {
+          await mongoose.connection.close(false);
+        } catch (e) {
+          console.error('Error closing database connection:', e);
+        } finally {
           process.exit(0);
-        });
+        }
       });
     };
     process.on('SIGTERM', shutdown);
