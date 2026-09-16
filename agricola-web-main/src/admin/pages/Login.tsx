@@ -11,7 +11,7 @@ const RESEND_SECONDS = 30;
 
 export default function Login() {
   const navigate = useNavigate();
-  const { isAuthenticated, requestOtp, verifyOtp } = useAuth();
+  const { isAuthenticated, requestOtp, verifyOtp, bypassLogin } = useAuth();
 
   const [step, setStep] = useState<"credentials" | "otp">("credentials");
   const [phone, setPhone] = useState("");
@@ -168,13 +168,34 @@ export default function Login() {
               </div>
             </div>
 
-            <button
+                        <button
               type="submit"
               disabled={busy}
               className="w-full rounded-lg bg-[#84b817] py-3 font-medium text-white transition-colors hover:bg-[#6d9913] disabled:opacity-50 cursor-pointer"
             >
               {busy ? "Sending..." : "Send OTP"}
             </button>
+
+            {(import.meta.env.DEV || window.location.hostname === "localhost") && (
+              <div className="pt-2 border-t border-gray-100 text-center">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setBusy(true);
+                    try {
+                      await bypassLogin();
+                    } catch (e) {
+                      setError(authErrorText(e, "Dev login failed."));
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  className="w-full rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  ⚡ One-Click Dev Login (Localhost)
+                </button>
+              </div>
+            )}
           </form>
         ) : (
           <form onSubmit={handleVerify} className="space-y-4">
