@@ -2,14 +2,57 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCategories, type StorefrontCategory } from "../../lib/storefront";
 
-const categoryDetails = [
-  { badge: "Mithila GI Tagged", badgeBg: "bg-[#f78e27] text-white", description: "Slow-roasted Foxnuts, Raw 6A grade, seasoned with Himalayan pink salt & jaggery pepper.", price: "Starts at ₹320" },
-  { badge: "Superfood Power", badgeBg: "bg-[#c9ecc4] text-[#1e3a1f]", description: "Raw unroasted Chia, Omega-rich Flax, Kashmiri Pumpkin Seeds, and raw Sunflower kernels.", price: "Starts at ₹199" },
-  { badge: "7.8% Curcumin", badgeBg: "bg-[#84b817] text-white", description: "High-potency Meghalaya Lakadong Turmeric, Malabar Tellicherry Peppercorns, and Sun-dried Coriander.", price: "Starts at ₹240" },
-  { badge: "Cold-Pressed", badgeBg: "bg-[#eae8e5] text-[#1b1c1a]", description: "Kachi Ghani Mustard oil, Kolhu pressed Sesame oil, and Desi Gir Cow Bilona Cultured Ghee.", price: "Starts at ₹440" },
-  { badge: "Gluten-Free Grains", badgeBg: "bg-[#c9ecc4] text-[#1e3a1f]", description: "Unpolished Foxtail Millet, Kodo, Finger Millet (Ragi), and heirloom Red Rice from Kaithal.", price: "Starts at ₹180" },
-  { badge: "Festive Hampers", badgeBg: "bg-[#ffdcc3] text-[#603100]", description: "Artisanal wooden gift sets, wellness assortments, and corporate pure-pantry seasonal gift boxes.", price: "Starts at ₹1,199" },
-];
+interface CategoryMeta {
+  badge: string;
+  badgeBg: string;
+  fallbackDescription: string;
+  fallbackPrice: number;
+}
+
+const CATEGORY_META_MAP: Record<string, CategoryMeta> = {
+  makhana: {
+    badge: "Mithila GI Tagged",
+    badgeBg: "bg-[#f78e27] text-white",
+    fallbackDescription: "Slow-roasted GI-tagged Mithila foxnuts, raw 6A grade, seasoned with pink salt & clean crunch.",
+    fallbackPrice: 599,
+  },
+  "green-teas": {
+    badge: "Whole Leaf Organic",
+    badgeBg: "bg-[#84b817] text-white",
+    fallbackDescription: "High-altitude tender whole leaf green tea, naturally rich in antioxidants and pure rejuvenating aroma.",
+    fallbackPrice: 480,
+  },
+  "black-tea": {
+    badge: "Single-Origin Assam",
+    badgeBg: "bg-[#1e3a1f] text-white",
+    fallbackDescription: "Orthodox whole leaf single-origin Assam black tea with rich amber liquor and bold malty notes.",
+    fallbackPrice: 450,
+  },
+  "herbal-tea": {
+    badge: "Ayurvedic Blend",
+    badgeBg: "bg-[#c9ecc4] text-[#1e3a1f]",
+    fallbackDescription: "Caffeine-free Himalayan forest-foraged botanical infusions blended with sacred Ayurvedic herbs.",
+    fallbackPrice: 420,
+  },
+  "seeds-nuts": {
+    badge: "Superfood Power",
+    badgeBg: "bg-[#c9ecc4] text-[#1e3a1f]",
+    fallbackDescription: "Raw unroasted chia, omega-rich flax, Kashmiri pumpkin seeds, and raw sunflower kernels.",
+    fallbackPrice: 199,
+  },
+  "organic-spices": {
+    badge: "High Curcumin",
+    badgeBg: "bg-[#84b817] text-white",
+    fallbackDescription: "High-potency Lakadong turmeric, Malabar Tellicherry peppercorns, and sun-dried organic spices.",
+    fallbackPrice: 240,
+  },
+  "cold-pressed-oils": {
+    badge: "Wood-Pressed",
+    badgeBg: "bg-[#eae8e5] text-[#1b1c1a]",
+    fallbackDescription: "Kachi Ghani mustard oil, Kolhu pressed sesame oil, and traditional cultured Gir cow bilona ghee.",
+    fallbackPrice: 440,
+  },
+};
 
 const DEFAULT_CAT_IMAGE = "https://images.unsplash.com/photo-1599707367072-cd6ada2bc375?auto=format&fit=crop&w=600&q=80";
 
@@ -67,8 +110,19 @@ const CategoriesSection: React.FC = () => {
           ? Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="h-96 rounded-3xl bg-gray-100 animate-pulse" />
             ))
-          : categories.slice(0, 6).map((category, index) => {
-              const detail = categoryDetails[index % categoryDetails.length];
+          : categories.slice(0, 6).map((category) => {
+              const meta = CATEGORY_META_MAP[category.slug] || {
+                badge: "Farm Direct",
+                badgeBg: "bg-[#84b817] text-white",
+                fallbackDescription: "Certified organic harvest direct from sustainable Indian farms.",
+                fallbackPrice: 199,
+              };
+              const description = category.description || meta.fallbackDescription;
+              const minPrice = typeof category.minPrice === "number" && category.minPrice > 0
+                ? category.minPrice
+                : meta.fallbackPrice;
+              const priceText = `Starts at ₹${minPrice}`;
+
               return (
                 <button
                   key={category.id}
@@ -77,17 +131,17 @@ const CategoriesSection: React.FC = () => {
                 >
                   <div className="w-full h-52 rounded-2xl bg-[#f5f3f0] overflow-hidden relative mb-4 flex items-center justify-center">
                     <CategoryThumb image={category.image} name={category.name} />
-                    <span className={`absolute top-3 left-3 ${detail.badgeBg} text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider`}>
-                      {detail.badge}
+                    <span className={`absolute top-3 left-3 ${meta.badgeBg} text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider`}>
+                      {meta.badge}
                     </span>
                   </div>
                   <div>
                     <span className="text-[11px] text-[#434936] font-semibold">Farm-direct collection</span>
                     <h3 className="text-xl font-bold text-[#1b1c1a] mt-1 group-hover:text-[#486800] transition-colors">{category.name}</h3>
-                    <p className="text-sm text-[#434936] mt-1 leading-relaxed">{detail.description}</p>
+                    <p className="text-sm text-[#434936] mt-1 leading-relaxed">{description}</p>
                   </div>
                   <div className="mt-4 pt-3 border-t border-[#e4e2df] flex items-center justify-between">
-                    <span className="text-sm text-[#486800] font-bold">{detail.price}</span>
+                    <span className="text-sm text-[#486800] font-bold">{priceText}</span>
                     <span className="w-8 h-8 rounded-full bg-[#c9ecc4] text-[#1e3a1f] flex items-center justify-center group-hover:bg-[#486800] group-hover:text-white transition-colors" aria-hidden="true">
                       <span className="material-symbols-outlined text-sm">arrow_outward</span>
                     </span>
