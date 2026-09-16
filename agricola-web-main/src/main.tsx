@@ -16,6 +16,7 @@ import OrderTracking from "./Pages/OrderTracking";
 import ReturnPolicy from "./Pages/ReturnPolicy";
 import Profile from "./Pages/Profile";
 import Feedback from "./Pages/Feedback";
+import NotFound from "./Pages/NotFound";
 import Wishlist from "./Pages/Wishlist";
 import PrivacyPolicy from "./Pages/PrivacyPolicy";
 import TermsConditions from "./Pages/TermsConditions";
@@ -68,6 +69,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/return-policy" element={<ReturnPolicy />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/feedback" element={<Feedback />} />
+          <Route path="*" element={<NotFound />} />
         </Route>
         <Route
           path="/admin/*"
