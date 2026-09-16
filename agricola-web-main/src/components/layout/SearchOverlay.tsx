@@ -10,11 +10,11 @@ interface SearchOverlayProps {
 
 const FALLBACK_POPULAR_TAGS = [
   "Makhana",
-  "Chia Seeds",
-  "Lakadong Turmeric",
-  "Flax Seeds",
-  "Mustard Oil",
-  "Raw Honey",
+  "Green Teas",
+  "Black Tea",
+  "Herbal Tea",
+  "Healthy Snack",
+  "Superfood",
 ];
 
 const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
@@ -35,7 +35,15 @@ export default function SearchOverlay({ open, onClose }: SearchOverlayProps) {
 
     getPopularSearches()
       .then((tags) => {
-        if (tags && tags.length > 0) setPopularTags(tags);
+        if (tags && tags.length > 0) {
+          const filtered = tags.filter(
+            (t) =>
+              !["seeds & nuts", "organic spices", "cold-pressed oils", "chia seeds", "turmeric", "mustard oil"].includes(
+                t.toLowerCase()
+              )
+          );
+          if (filtered.length > 0) setPopularTags(filtered);
+        }
       })
       .catch(() => {
         // Retain fallback tags gracefully
@@ -110,7 +118,7 @@ export default function SearchOverlay({ open, onClose }: SearchOverlayProps) {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search organic chia seeds, sun-dried makhana, spices..."
+              placeholder="Search Mithila GI makhana, whole leaf green tea, herbal tea..."
               className="w-full bg-transparent text-sm font-medium text-[#1b1c1a] placeholder:text-gray-400 focus:outline-none"
             />
             {query && (
@@ -167,7 +175,7 @@ export default function SearchOverlay({ open, onClose }: SearchOverlayProps) {
             <div className="py-10 text-center">
               <p className="text-sm font-bold text-[#1e3a1f]">No products found for "{query}"</p>
               <p className="text-xs text-gray-500 mt-1">
-                Try searching for makhana, chia seeds, turmeric, or mustard oil.
+                Try searching for makhana, green tea, black tea, or herbal tea.
               </p>
             </div>
           ) : results.length > 0 ? (

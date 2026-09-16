@@ -19,7 +19,7 @@ router.get('/', optionalAuth, async (req, res) => {
 
     // Prefer text index; fall back to a sanitised regex for partial matches.
     let products = await Product.find(
-      { $text: { $search: q }, status: 'active' },
+      { $text: { $search: q }, status: { $in: ['active', 'out_of_stock'] } },
       { score: { $meta: 'textScore' } }
     )
       .populate('category', 'name slug')
@@ -29,7 +29,7 @@ router.get('/', optionalAuth, async (req, res) => {
     if (products.length === 0) {
       const safe = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       products = await Product.find({
-        status: 'active',
+        status: { $in: ['active', 'out_of_stock'] },
         $or: [
           { name: { $regex: safe, $options: 'i' } },
           { tags: { $regex: safe, $options: 'i' } }

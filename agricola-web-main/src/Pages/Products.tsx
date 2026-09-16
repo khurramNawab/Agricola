@@ -86,15 +86,22 @@ export const Products = () => {
               >
                 All
               </button>
-              {categories.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => selectCategory(c.slug)}
-                  className={chipClass(activeCategory === c.slug)}
-                >
-                  {c.name}
-                </button>
-              ))}
+              {categories
+                .filter(
+                  (c) =>
+                    !["seeds-nuts", "organic-spices", "cold-pressed-oils"].includes(
+                      c.slug
+                    )
+                )
+                .map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => selectCategory(c.slug)}
+                    className={chipClass(activeCategory === c.slug)}
+                  >
+                    {c.name}
+                  </button>
+                ))}
             </div>
           )}
 
