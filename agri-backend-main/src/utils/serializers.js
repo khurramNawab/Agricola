@@ -30,6 +30,8 @@ const toProduct = (product) => {
     })),
     images: imageUrls(p.images),
     image: primaryImage(p.images),
+    video: p.video?.url ? { url: p.video.url, publicId: p.video.publicId } : (p.videoUrl ? { url: p.videoUrl } : null),
+    videoUrl: p.video?.url || p.videoUrl || null,
     newlyAdded: !!p.newlyAdded,
     about: p.about || '',
     usageInstructions: p.usageInstructions || '',

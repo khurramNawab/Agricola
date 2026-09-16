@@ -3,7 +3,7 @@ import { Upload, X, Loader2 } from "lucide-react";
 import { uploadImages, type UploadedImage } from "../api/adminApi";
 
 interface ImageDropzoneProps {
-  /** Current image URL, or null when empty. */
+  /** Current image or video URL, or null when empty. */
   value: string | null;
   onUploaded: (img: UploadedImage) => void;
   onRemove: () => void;
@@ -13,6 +13,10 @@ interface ImageDropzoneProps {
   caption?: string;
   /** "primary" = large yellow dropzone, "secondary" = compact gray. */
   variant?: "primary" | "secondary";
+  /** Optional file accept pattern. Defaults to images. */
+  accept?: string;
+  /** Whether the dropzone is designated for video. */
+  isVideo?: boolean;
 }
 
 export default function ImageDropzone({
@@ -22,6 +26,8 @@ export default function ImageDropzone({
   folder = "uploads",
   caption,
   variant = "secondary",
+  accept,
+  isVideo = false,
 }: ImageDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -51,16 +57,20 @@ export default function ImageDropzone({
 
   // Preview state
   if (value) {
+    const isVid = isVideo || /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(value);
     return (
-      <div className="relative overflow-hidden rounded-lg border border-gray-200">
-        <img src={value} alt="" className="h-32 w-full object-cover" />
+      <div className="relative overflow-hidden rounded-lg border border-gray-200 bg-black flex items-center justify-center">
+        {isVid ? (
+          <video src={value} controls className="h-32 w-full object-contain" />
+        ) : (
+          <img src={value} alt="" className="h-32 w-full object-cover" />
+        )}
         <button
           type="button"
           onClick={onRemove}
-          className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
-          title="Remove image"
+          className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white hover:bg-black/80 cursor-pointer z-10"
         >
-          <X size={14} />
+          <X size={16} />
         </button>
       </div>
     );
@@ -87,7 +97,7 @@ export default function ImageDropzone({
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
+        accept={accept || "image/jpeg,image/png,image/webp,image/gif"}
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
       />

@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import Footer from "../components/layout/Footer";
+import { submitFeedback } from "../lib/checkout";
 
 export default function Contact() {
   const [form, setForm] = useState({ name: "", email: "", message: "" });
   const [submitted, setSubmitted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -13,10 +16,24 @@ export default function Contact() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.email || !form.message) return;
-    setSubmitted(true);
+    if (!form.name.trim() || !form.email.trim() || !form.message.trim() || busy) return;
+    setError("");
+    setBusy(true);
+    try {
+      await submitFeedback({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        message: form.message.trim(),
+        page: "/contact",
+      });
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't send your message. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -195,12 +212,22 @@ export default function Contact() {
                     />
                   </div>
 
+                  {error && (
+                    <div className="bg-red-50 text-red-700 text-xs p-3.5 rounded-2xl border border-red-200 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-sm">error</span>
+                      <span>{error}</span>
+                    </div>
+                  )}
+
                   <button
                     type="submit"
-                    className="w-full bg-[#486800] hover:bg-[#1e3a1f] text-white text-sm font-extrabold py-3.5 rounded-full shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
+                    disabled={busy}
+                    className="w-full bg-[#486800] hover:bg-[#1e3a1f] disabled:opacity-60 text-white text-sm font-extrabold py-3.5 rounded-full shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mt-2"
                   >
-                    <span>Send Message to Support</span>
-                    <span className="material-symbols-outlined text-base">send</span>
+                    <span>{busy ? "Sending Message…" : "Send Message to Support"}</span>
+                    <span className={`material-symbols-outlined text-base ${busy ? "animate-spin" : ""}`}>
+                      {busy ? "sync" : "send"}
+                    </span>
                   </button>
                 </form>
               )}

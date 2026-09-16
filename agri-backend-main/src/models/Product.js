@@ -43,6 +43,14 @@ const productSchema = new mongoose.Schema({
     alt: String,
     publicId: String // Cloudinary public ID for deletion
   }],
+  video: {
+    url: String,
+    publicId: String
+  },
+  videoUrl: {
+    type: String,
+    trim: true
+  },
   stock: {
     type: Number,
     required: [true, 'Stock quantity is required'],

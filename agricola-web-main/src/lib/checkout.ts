@@ -1,7 +1,7 @@
 // Storefront checkout/order/address API. All order + address routes require the
 // customer token (sent via the `token` override). Payment methods are public.
 
-import { apiData, apiFetch } from "./api";
+import { apiData, apiFetch, BASE_URL } from "./api";
 import { getCustomerToken } from "./storefrontAuth";
 
 export interface Address {
@@ -368,6 +368,26 @@ export async function getMyOrders(
     orders: res.data || [],
     pagination: res.pagination as any,
   };
+}
+
+/** Download authentic GST tax invoice PDF for an order (identical to admin invoice). */
+export async function downloadOrderInvoice(id: string, orderId: string): Promise<void> {
+  const token = getCustomerToken();
+  const res = await fetch(`${BASE_URL}/orders/${id}/invoice`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to download invoice (${res.status})`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `invoice-${orderId}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // Guest order tracking: orderId + the mobile on the order's shipping address.

@@ -13,6 +13,7 @@ const { initiateOrderPayment } = require('../utils/paymentIntent');
 const mailer = require('../utils/email');
 const shipping = require('../utils/shipping');
 const { CouponUtils } = require('../utils/helpers');
+const { streamInvoice } = require('../utils/invoice');
 
 const ALLOWED_PAYMENT_METHODS = ['razorpay', 'cod'];
 
@@ -392,6 +393,37 @@ router.get('/:id', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Get order error:', error);
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch order' } });
+  }
+});
+
+// @desc    Download official PDF invoice for order (accessible to customer who placed it, or admin)
+// @route   GET /api/v1/orders/:id/invoice
+// @access  Private
+router.get('/:id/invoice', authenticate, async (req, res) => {
+  try {
+    const rawId = req.params.id;
+    const isObjectId = mongoose.Types.ObjectId.isValid(rawId);
+    const query = isObjectId ? { $or: [{ _id: rawId }, { orderId: rawId }] } : { orderId: rawId };
+    if (req.user.role !== 'admin') {
+      query.user = req.user._id;
+    }
+
+    const order = await Order.findOne(query)
+      .populate('user', 'name email phone userId')
+      .populate('warehouse', 'code name address spocName spocPhone');
+
+    if (!order) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="invoice-${order.orderId}.pdf"`);
+    streamInvoice(order, res);
+  } catch (error) {
+    console.error('Customer invoice download error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to generate invoice' } });
+    }
   }
 });
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import Footer from "../components/layout/Footer";
 import { useStorefront } from "../storefront/StorefrontContext";
-import { getOrder, type OrderDetail } from "../lib/checkout";
+import { getOrder, downloadOrderInvoice, type OrderDetail } from "../lib/checkout";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1582793988951-9aed5509eb97?auto=format&fit=crop&w=400&q=70";
@@ -17,6 +17,19 @@ export default function OrderDetails() {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false);
+
+  const handleDownloadInvoice = async () => {
+    if (!order || downloadingInvoice) return;
+    setDownloadingInvoice(true);
+    try {
+      await downloadOrderInvoice(order.id || id, order.orderId);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to download invoice");
+    } finally {
+      setDownloadingInvoice(false);
+    }
+  };
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -170,11 +183,24 @@ export default function OrderDetails() {
           <div className="flex items-center gap-3">
             <button
               type="button"
+              disabled={downloadingInvoice}
+              onClick={handleDownloadInvoice}
+              className="px-4 py-2.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50 text-xs font-bold text-[#1e3a1f] flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+              title="Download official GST Tax Invoice PDF"
+            >
+              <span className={`material-symbols-outlined text-sm ${downloadingInvoice ? "animate-spin" : ""}`}>
+                {downloadingInvoice ? "sync" : "download"}
+              </span>
+              <span>{downloadingInvoice ? "Generating PDF…" : "Tax Invoice (PDF)"}</span>
+            </button>
+            <button
+              type="button"
               onClick={() => window.print()}
-              className="px-4 py-2.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50 text-xs font-bold text-[#1e3a1f] flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+              className="px-4 py-2.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50 text-xs font-bold text-[#1e3a1f] hidden sm:flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+              title="Print summary"
             >
               <span className="material-symbols-outlined text-sm">print</span>
-              <span>Print Invoice</span>
+              <span>Print</span>
             </button>
             <Link
               to="/products"

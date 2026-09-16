@@ -22,6 +22,8 @@ export interface StorefrontProduct {
   isOrganic: boolean;
   variantStocks?: { size: string; stock: number; price?: number }[];
   category: { id: string; name: string; slug: string } | null;
+  video?: { url: string; publicId?: string };
+  videoUrl?: string;
 }
 
 /** Fuller product shape for the detail page (full gallery + long-form copy). */
@@ -51,6 +53,8 @@ interface RawProduct {
   tags?: string[];
   sizes?: string[];
   images?: (string | { url: string })[];
+  video?: { url: string; publicId?: string };
+  videoUrl?: string;
   newlyAdded?: boolean;
   inStock?: boolean;
   stock?: number;
@@ -97,6 +101,8 @@ const mapProduct = (p: RawProduct): StorefrontProduct => ({
     price: v.price || p.price,
   })),
   category: p.category ?? null,
+  video: p.video,
+  videoUrl: p.videoUrl || p.video?.url,
 });
 
 const allImages = (images?: (string | { url: string })[]): string[] =>

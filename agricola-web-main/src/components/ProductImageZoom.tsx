@@ -9,10 +9,12 @@ import {
   RotateCcw,
   Sparkles,
   Heart,
+  Play,
 } from "lucide-react";
 
 interface ProductImageZoomProps {
   images: string[];
+  video?: string;
   activeImageIndex: number;
   onSelectImage: (index: number) => void;
   productTitle: string;
@@ -23,6 +25,7 @@ interface ProductImageZoomProps {
 
 export const ProductImageZoom: React.FC<ProductImageZoomProps> = ({
   images,
+  video,
   activeImageIndex,
   onSelectImage,
   productTitle,
@@ -30,6 +33,7 @@ export const ProductImageZoom: React.FC<ProductImageZoomProps> = ({
   isInWishlist = false,
   onToggleWishlist,
 }) => {
+  const [isVideoActive, setIsVideoActive] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
@@ -138,61 +142,87 @@ export const ProductImageZoom: React.FC<ProductImageZoomProps> = ({
         className="relative bg-[#f5f3f0] rounded-3xl overflow-hidden shadow-lg aspect-square sm:aspect-[4/3] flex items-center justify-center border border-gray-200/70 cursor-zoom-in group"
         title="Click for full-screen macro inspection"
       >
-        {/* The Zoomable Product Image */}
-        <img
-          src={currentImage}
-          alt={productTitle}
-          style={{
-            transformOrigin: `${mousePos.x}% ${mousePos.y}%`,
-            transform: isHovering ? "scale(2.5)" : "scale(1)",
-            transition: isHovering ? "transform-origin 0.05s ease-out, transform 0.25s ease-out" : "transform 0.3s ease-out",
-          }}
-          className="w-full h-full object-cover will-change-transform pointer-events-none"
-        />
-
-        {/* Amazon-Style Lens Indicator Tag (Bottom Center) */}
-        <div
-          className={`absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/75 backdrop-blur-md text-white px-3.5 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 shadow-lg pointer-events-none transition-opacity duration-200 z-10 ${
-            isHovering ? "opacity-95" : "opacity-75 group-hover:opacity-100"
-          }`}
-        >
-          <ZoomIn className="w-3.5 h-3.5 text-[#84b817]" />
-          <span>{isHovering ? "Move mouse to inspect details" : "Roll over image to zoom in"}</span>
-        </div>
-
-        {/* Badges Floating Over Image (Top-Left) */}
-        <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none z-10">
-          {isOrganic !== false ? (
-            <div className="bg-white/95 backdrop-blur-md text-[#486800] text-[11px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full shadow-md flex items-center gap-1.5 border border-[#84b817]/20">
-              <span className="material-symbols-outlined text-sm text-[#486800]">verified</span>
-              <span>100% Certified Organic</span>
+        {/* The Zoomable Product Image OR Video Player */}
+        {isVideoActive && video ? (
+          <div
+            className="w-full h-full bg-black flex items-center justify-center relative cursor-default"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <video
+              src={video}
+              controls
+              autoPlay
+              playsInline
+              loop
+              className="w-full h-full object-contain max-h-full"
+            />
+            <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-md text-[#84b817] text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1.5 border border-[#84b817]/40 pointer-events-none">
+              <span className="w-2 h-2 rounded-full bg-[#84b817] animate-pulse" />
+              <span>Product Video Demo</span>
             </div>
-          ) : (
-            <div className="bg-white/95 backdrop-blur-md text-gray-600 text-[11px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full shadow-md flex items-center gap-1.5 border border-gray-200">
-              <span className="material-symbols-outlined text-sm text-gray-500">eco</span>
-              <span>Naturally Sourced • Non-Organic</span>
-            </div>
-          )}
-          <div className="bg-[#1e3a1f] text-white text-[11px] font-bold px-3.5 py-1.5 rounded-full shadow-md flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-sm text-[#84b817]">nature_people</span>
-            <span>Direct from Certified Farm Co-op</span>
           </div>
-        </div>
+        ) : (
+          <img
+            src={currentImage}
+            alt={productTitle}
+            style={{
+              transformOrigin: `${mousePos.x}% ${mousePos.y}%`,
+              transform: isHovering ? "scale(2.5)" : "scale(1)",
+              transition: isHovering ? "transform-origin 0.05s ease-out, transform 0.25s ease-out" : "transform 0.3s ease-out",
+            }}
+            className="w-full h-full object-cover will-change-transform pointer-events-none"
+          />
+        )}
+
+        {/* Amazon-Style Lens Indicator Tag (Bottom Center) - Only for photo */}
+        {!isVideoActive && (
+          <div
+            className={`absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/75 backdrop-blur-md text-white px-3.5 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 shadow-lg pointer-events-none transition-opacity duration-200 z-10 ${
+              isHovering ? "opacity-95" : "opacity-75 group-hover:opacity-100"
+            }`}
+          >
+            <ZoomIn className="w-3.5 h-3.5 text-[#84b817]" />
+            <span>{isHovering ? "Move mouse to inspect details" : "Roll over image to zoom in"}</span>
+          </div>
+        )}
+
+        {/* Badges Floating Over Image (Top-Left) - Only when not video */}
+        {!isVideoActive && (
+          <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none z-10">
+            {isOrganic !== false ? (
+              <div className="bg-white/95 backdrop-blur-md text-[#486800] text-[11px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full shadow-md flex items-center gap-1.5 border border-[#84b817]/20">
+                <span className="material-symbols-outlined text-sm text-[#486800]">verified</span>
+                <span>100% Certified Organic</span>
+              </div>
+            ) : (
+              <div className="bg-white/95 backdrop-blur-md text-gray-600 text-[11px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full shadow-md flex items-center gap-1.5 border border-gray-200">
+                <span className="material-symbols-outlined text-sm text-gray-500">eco</span>
+                <span>Naturally Sourced • Non-Organic</span>
+              </div>
+            )}
+            <div className="bg-[#1e3a1f] text-white text-[11px] font-bold px-3.5 py-1.5 rounded-full shadow-md flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm text-[#84b817]">nature_people</span>
+              <span>Direct from Certified Farm Co-op</span>
+            </div>
+          </div>
+        )}
 
         {/* Badges Floating Top-Right (Full-Screen Zoom Button & Wishlist) */}
         <div className="absolute top-4 right-4 flex flex-col gap-2 z-10">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsLightboxOpen(true);
-            }}
-            aria-label="Open Fullscreen Zoom"
-            title="Inspect Macro Details (Fullscreen)"
-            className="w-10 h-10 rounded-full bg-white/95 backdrop-blur-md text-[#1e3a1f] hover:text-[#486800] flex items-center justify-center shadow-md transition-all hover:scale-110 cursor-pointer"
-          >
-            <Maximize2 size={18} />
-          </button>
+          {!isVideoActive && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsLightboxOpen(true);
+              }}
+              aria-label="Open Fullscreen Zoom"
+              title="Inspect Macro Details (Fullscreen)"
+              className="w-10 h-10 rounded-full bg-white/95 backdrop-blur-md text-[#1e3a1f] hover:text-[#486800] flex items-center justify-center shadow-md transition-all hover:scale-110 cursor-pointer"
+            >
+              <Maximize2 size={18} />
+            </button>
+          )}
           {onToggleWishlist && (
             <button
               type="button"
@@ -213,24 +243,29 @@ export const ProductImageZoom: React.FC<ProductImageZoomProps> = ({
         </div>
 
         {/* Image Counter Pill Top-Center */}
-        {images.length > 1 && (
+        {!isVideoActive && images.length > 1 && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-full pointer-events-none z-10">
             {activeImageIndex + 1} / {images.length}
           </div>
         )}
       </div>
 
-      {/* ── Thumbnails Row: Displays all admin-uploaded product images ── */}
-      {images.length > 1 && (
+      {/* ── Thumbnails Row: Displays product images + optional video thumbnail (Myntra/Flipkart style) ── */}
+      {(images.length > 1 || !!video) && (
         <div className="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-none">
           {images.map((img, idx) => (
             <button
               key={idx}
               type="button"
-              onClick={() => onSelectImage(idx)}
-              onMouseEnter={() => onSelectImage(idx)}
+              onClick={() => {
+                setIsVideoActive(false);
+                onSelectImage(idx);
+              }}
+              onMouseEnter={() => {
+                if (!isVideoActive) onSelectImage(idx);
+              }}
               className={`relative w-18 h-18 sm:w-20 sm:h-20 shrink-0 rounded-2xl overflow-hidden bg-white shadow-xs transition-all cursor-pointer border-2 ${
-                activeImageIndex === idx
+                !isVideoActive && activeImageIndex === idx
                   ? "border-[#486800] ring-2 ring-[#486800]/25 scale-102"
                   : "border-gray-200/80 hover:border-[#84b817] opacity-80 hover:opacity-100"
               }`}
@@ -242,6 +277,26 @@ export const ProductImageZoom: React.FC<ProductImageZoomProps> = ({
               </span>
             </button>
           ))}
+
+          {video && (
+            <button
+              type="button"
+              onClick={() => setIsVideoActive(true)}
+              className={`relative w-18 h-18 sm:w-20 sm:h-20 shrink-0 rounded-2xl overflow-hidden bg-gradient-to-br from-[#1e3a1f] to-[#36511b] shadow-xs transition-all cursor-pointer border-2 flex flex-col items-center justify-center text-white ${
+                isVideoActive
+                  ? "border-[#84b817] ring-2 ring-[#84b817]/40 scale-102"
+                  : "border-gray-200/80 hover:border-[#84b817] opacity-85 hover:opacity-100"
+              }`}
+              title="Play Product Video"
+            >
+              <div className="w-7 h-7 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center mb-1">
+                <Play size={14} className="fill-white text-white ml-0.5" />
+              </div>
+              <span className="text-[9px] font-black uppercase tracking-wider bg-black/50 px-2 py-0.5 rounded-full">
+                Video
+              </span>
+            </button>
+          )}
         </div>
       )}
 

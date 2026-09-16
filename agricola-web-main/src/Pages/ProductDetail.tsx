@@ -430,6 +430,7 @@ export default function ProductDetail() {
           <div className="lg:col-span-6 flex flex-col gap-4">
             <ProductImageZoom
               images={galleryImages}
+              video={product.video?.url || product.videoUrl}
               activeImageIndex={activeImage}
               onSelectImage={setActiveImage}
               productTitle={product.title}
@@ -772,11 +773,17 @@ export default function ProductDetail() {
                 <span className="text-[11px] font-bold text-[#1e3a1f]">Nitrogen Flushed</span>
                 <span className="text-[10px] text-gray-500">Crunch guaranteed</span>
               </div>
-              <div className="bg-white p-3 rounded-2xl flex flex-col items-center text-center gap-1 shadow-xs border border-gray-100">
-                <RotateCcw size={20} className="text-[#486800]" />
-                <span className="text-[11px] font-bold text-[#1e3a1f]">Easy 7-Day Return</span>
-                <span className="text-[10px] text-gray-500">Zero questions asked</span>
-              </div>
+              <Link
+                to="/return-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white p-3 rounded-2xl flex flex-col items-center text-center gap-1 shadow-xs border border-gray-100 hover:border-[#84b817] hover:shadow-sm transition-all group"
+                title="View Agricola Freshness & Return Policy"
+              >
+                <RotateCcw size={20} className="text-[#486800] group-hover:rotate-[-45deg] transition-transform" />
+                <span className="text-[11px] font-bold text-[#1e3a1f] group-hover:text-[#486800]">Easy 7-Day Return</span>
+                <span className="text-[10px] text-[#486800] underline">View Policy</span>
+              </Link>
             </div>
           </div>
         </div>

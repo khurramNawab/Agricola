@@ -1879,10 +1879,148 @@ router.put('/orders/:id/assign-warehouse', async (req, res) => {
   }
 });
 
+// @route   POST /api/v1/admin/orders/:id/clone
+// @desc    Duplicate/clone an existing order with stock validation, fresh order ID, and reset fulfillment state
+router.post('/orders/:id/clone', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
+    }
+
+    const source = await Order.findById(req.params.id);
+    if (!source) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
+    }
+
+    if (!Array.isArray(source.items) || source.items.length === 0) {
+      return res.status(400).json({ success: false, error: { code: 'INVALID_ORDER', message: 'Source order has no items to clone' } });
+    }
+
+    // 1. CRITICAL: Validate stock availability across all line items before allowing the clone
+    const shortItems = [];
+    for (const item of source.items) {
+      const pid = item.product?._id || item.product;
+      const product = await Product.findById(pid);
+      if (!product) {
+        shortItems.push(`${item.name || 'Product'} (No longer exists in catalog)`);
+        continue;
+      }
+      const needed = item.quantity || 1;
+      const available = product.stock || 0;
+      if (available < needed) {
+        shortItems.push(`${product.name || item.name} (Available: ${available}, Needed: ${needed})`);
+      }
+    }
+
+    if (shortItems.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INSUFFICIENT_STOCK',
+          message: `Cannot clone order. Insufficient stock for: ${shortItems.join(', ')}`
+        }
+      });
+    }
+
+    // 2. Stock handling: match existing logic
+    // If COD, deduct stock immediately upon clone creation (matching normal COD orders in orders.js).
+    // If prepaid, stock is validated upfront (above) and decrements when paid/confirmed.
+    const paymentMethod = req.body.paymentMethod || source.paymentMethod || 'cod';
+    if (paymentMethod === 'cod') {
+      for (const item of source.items) {
+        const pid = item.product?._id || item.product;
+        const qty = item.quantity || 1;
+        await Product.updateOne(
+          { _id: pid, stock: { $gte: qty } },
+          { $inc: { stock: -qty } }
+        );
+        if (item.weight) {
+          await Product.updateOne(
+            { _id: pid, 'variantStocks.size': item.weight },
+            { $inc: { 'variantStocks.$.stock': -qty } }
+          );
+        }
+      }
+    }
+
+    // 3. Build cloned order document
+    const clonedOrder = new Order({
+      user: source.user,
+      email: source.email,
+      items: source.items.map((i) => ({
+        product: i.product?._id || i.product,
+        name: i.name,
+        weight: i.weight,
+        price: i.price,
+        quantity: i.quantity,
+        image: i.image,
+        subtotal: i.subtotal
+      })),
+      shippingAddress: {
+        name: source.shippingAddress?.name || 'Customer',
+        phone: source.shippingAddress?.phone || '',
+        street: source.shippingAddress?.street || '',
+        city: source.shippingAddress?.city || '',
+        state: source.shippingAddress?.state || '',
+        pincode: source.shippingAddress?.pincode || '',
+        country: source.shippingAddress?.country || 'India'
+      },
+      billingAddress: source.billingAddress ? {
+        name: source.billingAddress.name,
+        phone: source.billingAddress.phone,
+        street: source.billingAddress.street,
+        city: source.billingAddress.city,
+        state: source.billingAddress.state,
+        pincode: source.billingAddress.pincode,
+        country: source.billingAddress.country || 'India',
+        sameAsShipping: source.billingAddress.sameAsShipping !== false
+      } : undefined,
+      pricing: {
+        subtotal: source.pricing?.subtotal || 0,
+        shipping: source.pricing?.shipping || 0,
+        tax: source.pricing?.tax || 0,
+        discount: 0, // Reset discount on cloned order
+        total: (source.pricing?.subtotal || 0) + (source.pricing?.shipping || 0)
+      },
+      paymentMethod,
+      status: 'pending',
+      paymentStatus: 'pending',
+      awaitingWarehouseAssignment: true,
+      warehouse: null,
+      shipping: {
+        method: source.shipping?.method || 'standard',
+        cost: source.shipping?.cost || 0
+      },
+      notes: {
+        customer: source.notes?.customer || '',
+        admin: `Cloned from ${source.orderId} by admin`
+      },
+      timeline: [{
+        status: 'pending',
+        message: `Order cloned from ${source.orderId}`,
+        timestamp: new Date(),
+        updatedBy: req.user._id
+      }]
+    });
+
+    await clonedOrder.save();
+    await clonedOrder.populate('user', 'name email userId');
+
+    res.status(201).json({
+      success: true,
+      message: `Order cloned successfully as ${clonedOrder.orderId}`,
+      data: toAdminOrder(clonedOrder)
+    });
+  } catch (error) {
+    console.error('Clone order error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Failed to clone order' } });
+  }
+});
+
 const { restoreOrderStock } = require('../utils/stock');
 
 // @route   PUT /api/v1/admin/orders/:id/status
-// @desc    Update an order's status (pre-save appends a timeline entry)
+// @desc    Update an order's status (cancels carrier shipment on cancel, restores stock, pre-save appends a timeline entry)
 router.put('/orders/:id/status', [
   body('status').isIn(ORDER_STATUSES).withMessage('Invalid status'),
   body('note').optional().isLength({ max: 500 })
@@ -1894,16 +2032,66 @@ router.put('/orders/:id/status', [
     }
     const newStatus = req.body.status;
     const oldStatus = order.status;
+
+    // Disallow cancelling already-delivered orders
+    if (newStatus === 'cancelled' && oldStatus === 'delivered') {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_STATUS', message: 'Delivered orders cannot be cancelled' }
+      });
+    }
+
+    // Cancel carrier shipment if order is being cancelled and has a booked carrier shipment
+    let carrierWarning = null;
+    if (newStatus === 'cancelled' && oldStatus !== 'cancelled') {
+      const shipping = require('../utils/shipping');
+      const hasShipment = order.shipping && (order.shipping.trackingNumber || order.shipping.providerOrderId);
+      if (hasShipment) {
+        try {
+          const provider = shipping.providerOfOrder(order);
+          await shipping.cancelShipment({
+            trackingNumber: order.shipping.trackingNumber,
+            providerOrderId: order.shipping.providerOrderId,
+            provider
+          }, req.body.note || 'Cancelled by admin');
+
+          order.timeline.push({
+            status: 'shipment_cancelled',
+            message: `Carrier shipment (${order.shipping.carrier || provider || 'courier'}) cancelled successfully`,
+            timestamp: new Date(),
+            updatedBy: req.user._id
+          });
+        } catch (carrierErr) {
+          console.error(`[Admin Cancel] Carrier cancellation error for ${order.orderId}:`, carrierErr.message);
+          carrierWarning = `Order was cancelled locally, but the carrier shipment could not be automatically cancelled (${carrierErr.message}). Please review and cancel manually on the courier dashboard if needed.`;
+          order.timeline.push({
+            status: 'shipment_cancel_failed',
+            message: `Carrier shipment cancellation failed: ${carrierErr.message}`,
+            timestamp: new Date(),
+            updatedBy: req.user._id
+          });
+        }
+      }
+    }
+
+    // Restore stock when order is cancelled or refunded
     if ((newStatus === 'cancelled' || newStatus === 'refunded') && oldStatus !== 'cancelled' && oldStatus !== 'refunded') {
       await restoreOrderStock(order);
     }
+
     order.status = newStatus;
     if (req.body.note) {
       order.notes = { ...(order.notes || {}), admin: req.body.note };
     }
     await order.save();
     await order.populate('user', 'name email userId');
-    res.json({ success: true, message: 'Order status updated', data: toAdminOrder(order) });
+
+    res.json({
+      success: true,
+      message: carrierWarning ? `Order cancelled locally. Note: ${carrierWarning}` : 'Order status updated',
+      data: toAdminOrder(order),
+      ...(carrierWarning && { warning: carrierWarning })
+    });
   } catch (error) {
     console.error('Admin update order status error:', error);
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update order status' } });
@@ -2186,6 +2374,52 @@ router.patch('/coupons/:id/toggle', async (req, res) => {
     res.json({ success: true, message: `Coupon ${coupon.isActive ? 'activated' : 'deactivated'}`, data: { id: coupon._id, isActive: coupon.isActive } });
   } catch (error) {
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to toggle coupon' } });
+  }
+});
+
+// @route   DELETE /api/v1/admin/coupons/:id
+// @desc    Delete coupon: hard deletes if unused, soft deactivates with explanation if used on past orders
+router.delete('/coupons/:id', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Coupon not found' } });
+    }
+    const coupon = await Coupon.findById(req.params.id);
+    if (!coupon) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Coupon not found' } });
+    }
+
+    // Check if coupon has ever been used in redemptions or past orders
+    const redemptionsCount = (coupon.redemptions || []).length;
+    const usageCount = coupon.usedCount || 0;
+    const ordersWithCoupon = await Order.countDocuments({
+      $or: [{ 'coupon.code': coupon.code }, { 'appliedCoupons.code': coupon.code }]
+    });
+
+    const totalUsage = Math.max(redemptionsCount, usageCount, ordersWithCoupon);
+
+    if (totalUsage > 0) {
+      // Soft delete: deactivate to preserve order records
+      coupon.isActive = false;
+      await coupon.save();
+      return res.json({
+        success: true,
+        deactivated: true,
+        message: `This coupon was used on ${totalUsage} past order(s) and has been deactivated instead of deleted, to preserve order records.`,
+        data: { id: coupon._id, isActive: false }
+      });
+    }
+
+    // Safe hard delete: coupon has 0 redemptions
+    await Coupon.findByIdAndDelete(coupon._id);
+    return res.json({
+      success: true,
+      deleted: true,
+      message: `Coupon "${coupon.code}" permanently deleted successfully.`
+    });
+  } catch (error) {
+    console.error('Admin delete coupon error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to delete coupon' } });
   }
 });
 

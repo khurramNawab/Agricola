@@ -199,6 +199,8 @@ export interface AdminProduct {
   status: ProductStatus;
   sizes: string[];
   images: ProductImage[];
+  video?: { url: string; publicId?: string | null } | null;
+  videoUrl?: string | null;
   featured: boolean;
   /** Whether this product is organic — defaults to true for existing products */
   isOrganic: boolean;
@@ -242,6 +244,8 @@ export interface ProductPayload {
   whyChoose?: string;
   // Strings (new uploads as plain URLs) or full objects (to preserve the S3 key).
   images?: (string | ProductImage)[];
+  video?: { url: string; publicId?: string } | string;
+  videoUrl?: string;
   stock?: number;
   featured?: boolean;
   /** Whether the product is organic. Omitting falls back to schema default (true). */
@@ -584,6 +588,14 @@ export async function downloadLabel(id: string, orderId: string): Promise<void> 
   await downloadPdf(`/admin/orders/${id}/label`, `label-${orderId}.pdf`);
 }
 
+/** Clone/duplicate an existing order. */
+export async function cloneAdminOrder(id: string, paymentMethod?: string): Promise<AdminOrder> {
+  return apiData<AdminOrder>(`/admin/orders/${id}/clone`, {
+    method: "POST",
+    body: paymentMethod ? { paymentMethod } : undefined,
+  });
+}
+
 // ----- Warehouses -----------------------------------------------------------
 
 export interface AdminWarehouse {
@@ -893,8 +905,16 @@ export async function updateAdminCoupon(id: string, payload: Partial<CouponPaylo
   });
 }
 
-export async function deleteAdminCoupon(id: string): Promise<void> {
-  await apiData<{ success: boolean }>(`/admin/coupons/${id}`, {
+export interface DeleteCouponResponse {
+  success: boolean;
+  deactivated?: boolean;
+  deleted?: boolean;
+  message: string;
+  data?: any;
+}
+
+export async function deleteAdminCoupon(id: string): Promise<DeleteCouponResponse> {
+  return apiData<DeleteCouponResponse>(`/admin/coupons/${id}`, {
     method: "DELETE",
   });
 }
