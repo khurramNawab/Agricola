@@ -108,7 +108,7 @@ export function firebaseAuthErrorMessage(err: unknown): string {
     case "auth/quota-exceeded":
       return "SMS limit reached. Please try again later.";
     default:
-      return "Couldn't complete phone verification. Please try again.";
+      return (err as { message?: string })?.message || (err as { code?: string })?.code || "Couldn't complete phone verification. Please try again.";
   }
 }
 
