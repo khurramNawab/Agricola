@@ -1,3 +1,4 @@
+import { sanitizeZeroSafeNumber, zeroSafeInputProps } from "../../lib/zeroSafe";
 import { useState, useEffect, useCallback } from "react";
 import {
   Boxes,
@@ -353,21 +354,11 @@ export default function Inventory() {
                         </button>
 
                         <input
-                          type="number"
-                          min={0}
+                          type="text"
+                          {...zeroSafeInputProps}
                           value={currentEditedStock}
-                          onWheel={(e) => e.currentTarget.blur()}
-                          onFocus={(e) => {
-                            if (e.target.value === "0") e.target.select();
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "-" || e.key === "e" || e.key === "E") e.preventDefault();
-                          }}
                           onChange={(e) => {
-                            let raw = e.target.value.replace(/[^0-9]/g, "");
-                            if (/^0[0-9]+/.test(raw)) {
-                              raw = raw.replace(/^0+/, "");
-                            }
+                            const raw = sanitizeZeroSafeNumber(e.target.value, false);
                             handleStockChange(item.id, Math.max(0, parseInt(raw, 10) || 0));
                           }}
                           className="w-16 text-center font-black text-sm text-gray-900 bg-transparent focus:outline-none"

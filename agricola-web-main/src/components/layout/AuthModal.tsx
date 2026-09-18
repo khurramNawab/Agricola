@@ -34,19 +34,19 @@ const features = [
   {
     icon: Sparkles,
     title: "100% Farm-Direct",
-    desc: "Single-origin harvests sourced directly from certified farmer cooperatives.",
+    desc: "Single-origin harvests sourced directly from partner farmer cooperatives.",
     accent: "text-amber-400 bg-amber-400/10 border-amber-400/20",
   },
   {
     icon: Leaf,
-    title: "Batch Traceable",
-    desc: "Every pack verified with certified purity logs & laboratory testing reports.",
+    title: "Lab Tested Purity",
+    desc: "Every pack verified with NABL laboratory testing reports and strict quality protocols.",
     accent: "text-lime-400 bg-lime-400/10 border-lime-400/20",
   },
   {
     icon: ShieldCheck,
     title: "Direct Farm Express",
-    desc: "Dispatched from temperature-controlled certified facilities.",
+    desc: "Dispatched from temperature-controlled ISO facilities.",
     accent: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
   },
 ];
@@ -299,7 +299,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
             Pure Harvests • Conscious Living
           </h2>
           <p className="text-xs sm:text-sm text-[#aecfaa] max-w-md mx-auto leading-relaxed">
-            Enter your mobile number to explore certified organic harvests, track dispatches &amp; unlock member benefits.
+            Enter your mobile number to explore pure natural harvests, track dispatches &amp; unlock member benefits.
           </p>
         </div>
 

@@ -13,7 +13,7 @@ import { sendPhoneOtp, confirmPhoneOtp, toE164 } from "../../lib/firebase";
 const RECAPTCHA_CONTAINER_ID = "recaptcha-admin";
 const ADMIN_PROFILE_KEY = "admin_profile";
 
-export function getAdminProfile(): AdminProfile | null {
+function getAdminProfile(): AdminProfile | null {
   try {
     const raw = localStorage.getItem(ADMIN_PROFILE_KEY);
     return raw ? JSON.parse(raw) : null;
@@ -22,11 +22,11 @@ export function getAdminProfile(): AdminProfile | null {
   }
 }
 
-export function setAdminProfile(profile: AdminProfile): void {
+function setAdminProfile(profile: AdminProfile): void {
   localStorage.setItem(ADMIN_PROFILE_KEY, JSON.stringify(profile));
 }
 
-export function clearAdminProfile(): void {
+function clearAdminProfile(): void {
   localStorage.removeItem(ADMIN_PROFILE_KEY);
 }
 

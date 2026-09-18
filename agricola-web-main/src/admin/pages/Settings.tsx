@@ -11,12 +11,22 @@ import {
   Building2,
   ShieldCheck,
   RefreshCw,
+  FileText,
+  Mail,
+  Download,
+  Send,
+  Ticket,
+  Printer,
+  FileCheck,
 } from "lucide-react";
 import {
   getAdminSettings,
   updateAdminSettings,
+  downloadSampleInvoice,
+  emailSampleInvoice,
   type AdminStoreSettings,
 } from "../api/adminApi";
+import { sanitizeZeroSafeNumber, zeroSafeInputProps } from "../../lib/zeroSafe";
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AdminStoreSettings>({
@@ -25,15 +35,17 @@ export default function SettingsPage() {
     supportPhone: "+91 9012659000",
     supportWhatsApp: "+91 9012659000",
     businessHours: "Mon - Sat: 9:00 AM - 7:00 PM IST",
-    storeAddress: "AgriCola Headquarters, Organic Hub, Patna, Bihar - 800001",
+    storeAddress: "AgriCola Headquarters, Organic Hub, Kaithal, Haryana (136027) INDIA",
     enableMultiWarehouse: true,
     defaultCarrier: "both",
-    freeShippingThreshold: 999,
+    freeShippingThreshold: 799,
     standardDeliveryCharge: 50,
     enableWhatsAppNotifications: true,
     enableEmailNotifications: true,
     enableCod: true,
-    maxCodAmount: 49999,
+    maxCodAmount: 9999,
+    allowCouponStacking: false,
+    maxStackedCoupons: 2,
   });
 
   const [loading, setLoading] = useState(true);
@@ -41,7 +53,13 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"general" | "shipping" | "payments" | "notifications">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "shipping" | "payments" | "notifications" | "invoices">("general");
+
+  // Sample Invoice Preview & Email Testing State
+  const [sampleEmail, setSampleEmail] = useState("");
+  const [sampleEmailSending, setSampleEmailSending] = useState(false);
+  const [sampleEmailSuccess, setSampleEmailSuccess] = useState<string | null>(null);
+  const [downloadingSample, setDownloadingSample] = useState<string | null>(null);
 
   const fetchSettings = async () => {
     try {
@@ -49,7 +67,14 @@ export default function SettingsPage() {
       setError(null);
       const data = await getAdminSettings();
       if (data) {
-        setSettings(data);
+        setSettings({
+          ...data,
+          allowCouponStacking: data.allowCouponStacking ?? false,
+          maxStackedCoupons: data.maxStackedCoupons || 2,
+        });
+        if (!sampleEmail && data.supportEmail) {
+          setSampleEmail(data.supportEmail);
+        }
       }
     } catch (err: any) {
       setError(err.message || "Failed to load store settings");
@@ -68,14 +93,53 @@ export default function SettingsPage() {
       setSubmitting(true);
       setError(null);
       setSuccessMessage(null);
-      const updated = await updateAdminSettings(settings);
+      const payload: AdminStoreSettings = {
+        ...settings,
+        freeShippingThreshold: Number(settings.freeShippingThreshold) || 0,
+        standardDeliveryCharge: Number(settings.standardDeliveryCharge) || 0,
+        maxCodAmount: Number(settings.maxCodAmount) || 0,
+      };
+      const updated = await updateAdminSettings(payload);
       setSettings(updated);
       setSuccessMessage("Settings saved and applied successfully!");
-      setTimeout(() => setSuccessMessage(null), 3000);
+      setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err: any) {
       setError(err.message || "Failed to update settings");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDownloadSample = async (size?: "4x6") => {
+    try {
+      setDownloadingSample(size || "a4");
+      setError(null);
+      await downloadSampleInvoice(size);
+    } catch (err: any) {
+      setError(err.message || "Failed to generate sample invoice");
+    } finally {
+      setDownloadingSample(null);
+    }
+  };
+
+  const handleSendSampleEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const target = (sampleEmail || settings.supportEmail).trim();
+    if (!target || !/^\S+@\S+\.\S+$/.test(target)) {
+      setError("Please provide a valid email address to test invoice delivery.");
+      return;
+    }
+    try {
+      setSampleEmailSending(true);
+      setError(null);
+      setSampleEmailSuccess(null);
+      const res = await emailSampleInvoice(target);
+      setSampleEmailSuccess(res.message || `Sample GST Tax Invoice PDF dispatched to ${target}!`);
+      setTimeout(() => setSampleEmailSuccess(null), 6000);
+    } catch (err: any) {
+      setError(err.message || "Failed to email sample invoice.");
+    } finally {
+      setSampleEmailSending(false);
     }
   };
 
@@ -98,7 +162,7 @@ export default function SettingsPage() {
             Store &amp; System Settings
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Configure store contact information, multi-warehouse fulfillment, logistics rules, and payment options.
+            Configure store profile, fulfillment routing, payments, notifications, and unified tax invoices.
           </p>
         </div>
 
@@ -133,12 +197,13 @@ export default function SettingsPage() {
       )}
 
       {/* Settings Navigation Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-gray-100 p-1.5 rounded-2xl">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 bg-gray-100 p-1.5 rounded-2xl">
         {[
           { id: "general", label: "Store Profile", icon: Store },
           { id: "shipping", label: "Shipping & Fulfillment", icon: Truck },
           { id: "payments", label: "Payments & COD", icon: CreditCard },
           { id: "notifications", label: "Alerts & Notifications", icon: Bell },
+          { id: "invoices", label: "Tax Invoice & Sample", icon: FileText },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -256,13 +321,13 @@ export default function SettingsPage() {
             {/* Multi-warehouse switch */}
             <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
                   <Building2 className="w-5 h-5" />
                 </div>
                 <div>
                   <h4 className="font-bold text-gray-900 text-sm">Multi-Warehouse Fulfillment Mode</h4>
                   <p className="text-xs text-gray-500">
-                    When enabled, orders are held in <code>awaitingWarehouseAssignment</code> until assigned to a hub.
+                    When enabled, orders wait in unassigned state until routed to the nearest warehouse hub.
                   </p>
                 </div>
               </div>
@@ -270,7 +335,7 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={() => setSettings({ ...settings, enableMultiWarehouse: !settings.enableMultiWarehouse })}
-                className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
+                className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer shrink-0 ${
                   settings.enableMultiWarehouse ? "bg-[#84b817]" : "bg-gray-300"
                 }`}
               >
@@ -287,7 +352,7 @@ export default function SettingsPage() {
               <label className="block text-xs font-semibold text-gray-700 mb-2">
                 Active Logistics Carrier Routing
               </label>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
                   { id: "both", label: "Smart Hybrid (Ekart + Shiprocket)" },
                   { id: "ekart", label: "Ekart Logistics Priority" },
@@ -297,9 +362,9 @@ export default function SettingsPage() {
                     key={c.id}
                     type="button"
                     onClick={() => setSettings({ ...settings, defaultCarrier: c.id as any })}
-                    className={`py-3 px-3 rounded-xl text-xs font-semibold border transition-all text-center ${
+                    className={`py-3 px-3 rounded-xl text-xs font-semibold border transition-all text-center cursor-pointer ${
                       settings.defaultCarrier === c.id
-                        ? "bg-green-50 border-green-600 text-green-800 shadow-xs"
+                        ? "bg-green-50 border-green-600 text-green-800 shadow-xs ring-1 ring-green-600"
                         : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100"
                     }`}
                   >
@@ -315,12 +380,21 @@ export default function SettingsPage() {
                   Free Shipping Minimum Cart Value (₹)
                 </label>
                 <input
-                  type="number"
-                  value={settings.freeShippingThreshold}
-                  onChange={(e) => setSettings({ ...settings, freeShippingThreshold: Number(e.target.value) })}
-                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#84b817] focus:bg-white"
+                  type="text"
+                  {...zeroSafeInputProps}
+                  value={settings.freeShippingThreshold === 0 ? "0" : (settings.freeShippingThreshold || "")}
+                  onChange={(e) => {
+                    const clean = sanitizeZeroSafeNumber(e.target.value);
+                    setSettings({ ...settings, freeShippingThreshold: clean === "" ? ("" as any) : Number(clean) });
+                  }}
+                  onBlur={() => {
+                    if (settings.freeShippingThreshold === ("" as any) || settings.freeShippingThreshold === undefined) {
+                      setSettings((prev) => ({ ...prev, freeShippingThreshold: 0 }));
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#84b817] focus:bg-white font-bold"
                 />
-                <p className="text-[11px] text-gray-400 mt-1">Orders above this subtotal qualify for free delivery.</p>
+                <p className="text-[11px] text-gray-400 mt-1">Orders above this subtotal qualify for free delivery (Currently ₹{settings.freeShippingThreshold || 0}).</p>
               </div>
 
               <div>
@@ -328,10 +402,19 @@ export default function SettingsPage() {
                   Standard Delivery Fee (₹)
                 </label>
                 <input
-                  type="number"
-                  value={settings.standardDeliveryCharge}
-                  onChange={(e) => setSettings({ ...settings, standardDeliveryCharge: Number(e.target.value) })}
-                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#84b817] focus:bg-white"
+                  type="text"
+                  {...zeroSafeInputProps}
+                  value={settings.standardDeliveryCharge === 0 ? "0" : (settings.standardDeliveryCharge || "")}
+                  onChange={(e) => {
+                    const clean = sanitizeZeroSafeNumber(e.target.value);
+                    setSettings({ ...settings, standardDeliveryCharge: clean === "" ? ("" as any) : Number(clean) });
+                  }}
+                  onBlur={() => {
+                    if (settings.standardDeliveryCharge === ("" as any) || settings.standardDeliveryCharge === undefined) {
+                      setSettings((prev) => ({ ...prev, standardDeliveryCharge: 0 }));
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#84b817] focus:bg-white font-bold"
                 />
                 <p className="text-[11px] text-gray-400 mt-1">Flat base rate for orders below free shipping threshold.</p>
               </div>
@@ -344,7 +427,7 @@ export default function SettingsPage() {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-bold text-gray-900">Payment Gateways &amp; COD</h3>
-              <p className="text-xs text-gray-500">Configure online payment gateways and Cash on Delivery rules.</p>
+              <p className="text-xs text-gray-500">Configure online payment gateways, coupon stacking, and Cash on Delivery rules.</p>
             </div>
 
             {/* Razorpay status badge */}
@@ -399,12 +482,50 @@ export default function SettingsPage() {
                 Maximum COD Order Cap (₹)
               </label>
               <input
-                type="number"
-                value={settings.maxCodAmount}
-                onChange={(e) => setSettings({ ...settings, maxCodAmount: Number(e.target.value) })}
-                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#84b817] focus:bg-white"
+                type="text"
+                {...zeroSafeInputProps}
+                value={settings.maxCodAmount === 0 ? "0" : (settings.maxCodAmount || "")}
+                onChange={(e) => {
+                  const clean = sanitizeZeroSafeNumber(e.target.value);
+                  setSettings({ ...settings, maxCodAmount: clean === "" ? ("" as any) : Number(clean) });
+                }}
+                onBlur={() => {
+                  if (settings.maxCodAmount === ("" as any) || settings.maxCodAmount === undefined) {
+                    setSettings((prev) => ({ ...prev, maxCodAmount: 0 }));
+                  }
+                }}
+                className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#84b817] focus:bg-white font-bold"
               />
               <p className="text-[11px] text-gray-400 mt-1">Orders exceeding this amount must be prepaid online.</p>
+            </div>
+
+            {/* Coupon Stacking Policy */}
+            <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center">
+                  <Ticket className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900 text-sm">Multi-Coupon Stacking Policy</h4>
+                  <p className="text-xs text-gray-500">
+                    Allow shoppers to combine up to 2 coupons on a single order.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSettings({ ...settings, allowCouponStacking: !settings.allowCouponStacking })}
+                className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
+                  settings.allowCouponStacking ? "bg-[#84b817]" : "bg-gray-300"
+                }`}
+              >
+                <div
+                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
+                    settings.allowCouponStacking ? "translate-x-6" : "translate-x-0"
+                  }`}
+                />
+              </button>
             </div>
           </div>
         )}
@@ -414,7 +535,7 @@ export default function SettingsPage() {
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-bold text-gray-900">Communication &amp; Alerts</h3>
-              <p className="text-xs text-gray-500">Automated order updates and abandoned cart triggers.</p>
+              <p className="text-xs text-gray-500">Automated order updates, invoice dispatching, and messaging triggers.</p>
             </div>
 
             <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 flex items-center justify-between">
@@ -444,7 +565,7 @@ export default function SettingsPage() {
               <div>
                 <h4 className="font-bold text-gray-900 text-sm">Automated Email Notifications</h4>
                 <p className="text-xs text-gray-500">
-                  Send PDF tax invoices and dispatch updates to customer emails.
+                  Send PDF tax invoices and dispatch updates to customer &amp; admin emails automatically upon order placement.
                 </p>
               </div>
 
@@ -461,6 +582,114 @@ export default function SettingsPage() {
                   }`}
                 />
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* 5. TAX INVOICE & SAMPLE PREVIEW */}
+        {activeTab === "invoices" && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Official GST Tax Invoice &amp; Sample Inspection</h3>
+              <p className="text-xs text-gray-500">
+                Preview sample invoices and test live email delivery. The syntax, layout, and GST calculations are 100% identical for customers and administrators.
+              </p>
+            </div>
+
+            {/* Architecture / Template Integrity Banner */}
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-start gap-3">
+              <FileCheck className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-sm font-bold text-emerald-950">Unified Invoice Template Guarantee</h4>
+                <p className="text-xs text-emerald-800 mt-0.5 leading-relaxed">
+                  Both customer downloads, admin order details, courier shipping slips, and automated email attachments share the exact same PDF generation pipeline (<code>buildInvoiceData</code> engine in <code>src/utils/invoice.js</code>). GSTIN, SAC/HSN codes, CGST/SGST/IGST breakdown, and packaging slips remain strictly unified across all endpoints.
+                </p>
+              </div>
+            </div>
+
+            {/* Sample Download Actions */}
+            <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-3">
+              <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                <Download className="w-4 h-4 text-[#84b817]" />
+                Download Live Sample Invoices
+              </h4>
+              <p className="text-xs text-gray-500">
+                Click below to instantly inspect how the official invoice renders with live branding and tax formatting.
+              </p>
+              <div className="flex flex-wrap gap-3 pt-1">
+                <button
+                  type="button"
+                  disabled={!!downloadingSample}
+                  onClick={() => handleDownloadSample()}
+                  className="px-4 py-2.5 bg-white border border-gray-300 hover:border-[#84b817] hover:text-[#486800] rounded-xl text-xs font-bold text-gray-800 transition-all shadow-2xs cursor-pointer inline-flex items-center gap-2 disabled:opacity-50"
+                >
+                  {downloadingSample === "a4" ? (
+                    <div className="w-3.5 h-3.5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-green-700" />
+                  )}
+                  <span>Download Sample A4 Tax Invoice (PDF)</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={!!downloadingSample}
+                  onClick={() => handleDownloadSample("4x6")}
+                  className="px-4 py-2.5 bg-white border border-gray-300 hover:border-[#84b817] hover:text-[#486800] rounded-xl text-xs font-bold text-gray-800 transition-all shadow-2xs cursor-pointer inline-flex items-center gap-2 disabled:opacity-50"
+                >
+                  {downloadingSample === "4x6" ? (
+                    <div className="w-3.5 h-3.5 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Printer className="w-4 h-4 text-gray-700" />
+                  )}
+                  <span>Download Sample 4×6 Thermal Courier Label (PDF)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Test Email Dispatch Form */}
+            <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-[#84b817]" />
+                    Test Live Email Invoice Delivery
+                  </h4>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Send a real sample invoice PDF directly to your email address to confirm Zoho SMTP dispatch and formatting.
+                  </p>
+                </div>
+              </div>
+
+              {sampleEmailSuccess && (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{sampleEmailSuccess}</span>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <input
+                  type="email"
+                  placeholder="Enter your email (e.g. admin@agricola.co.in)"
+                  value={sampleEmail}
+                  onChange={(e) => setSampleEmail(e.target.value)}
+                  className="flex-1 px-3.5 py-2.5 bg-white border border-gray-200 rounded-xl text-xs sm:text-sm font-medium focus:outline-hidden focus:ring-2 focus:ring-[#84b817]"
+                />
+                <button
+                  type="button"
+                  disabled={sampleEmailSending}
+                  onClick={handleSendSampleEmail}
+                  className="px-5 py-2.5 bg-[#1e3a1f] hover:bg-[#486800] text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer inline-flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {sampleEmailSending ? (
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Send className="w-3.5 h-3.5 text-[#84b817]" />
+                  )}
+                  <span>{sampleEmailSending ? "Sending Invoice…" : "Send Test Invoice Email"}</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

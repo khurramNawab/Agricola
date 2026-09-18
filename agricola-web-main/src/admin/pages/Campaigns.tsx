@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { sanitizeZeroSafeNumber, zeroSafeInputProps } from "../../lib/zeroSafe";
 import {
   getAdminCampaigns,
   createAdminCampaign,
@@ -755,11 +756,19 @@ export default function CampaignsPage() {
                     Priority Score
                   </label>
                   <input
-                    type="number"
-                    min="0"
-                    placeholder="Higher = preferred"
-                    value={formData.priority}
-                    onChange={(e) => setFormData({ ...formData, priority: Number(e.target.value) })}
+                    type="text"
+                    {...zeroSafeInputProps}
+                    placeholder="0"
+                    value={formData.priority === 0 ? "0" : (formData.priority || "")}
+                    onChange={(e) => {
+                      const clean = sanitizeZeroSafeNumber(e.target.value);
+                      setFormData({ ...formData, priority: clean === "" ? ("" as any) : Number(clean) });
+                    }}
+                    onBlur={() => {
+                      if (formData.priority === ("" as any)) {
+                        setFormData((prev) => ({ ...prev, priority: 0 }));
+                      }
+                    }}
                     className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#84b817]/30 focus:border-[#84b817]"
                   />
                 </div>

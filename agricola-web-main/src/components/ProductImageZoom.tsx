@@ -192,7 +192,7 @@ export const ProductImageZoom: React.FC<ProductImageZoomProps> = ({
             {isOrganic !== false ? (
               <div className="bg-white/95 backdrop-blur-md text-[#486800] text-[11px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full shadow-md flex items-center gap-1.5 border border-[#84b817]/20">
                 <span className="material-symbols-outlined text-sm text-[#486800]">verified</span>
-                <span>100% Certified Organic</span>
+                <span>100% Pure &amp; Natural</span>
               </div>
             ) : (
               <div className="bg-white/95 backdrop-blur-md text-gray-600 text-[11px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full shadow-md flex items-center gap-1.5 border border-gray-200">
@@ -202,7 +202,7 @@ export const ProductImageZoom: React.FC<ProductImageZoomProps> = ({
             )}
             <div className="bg-[#1e3a1f] text-white text-[11px] font-bold px-3.5 py-1.5 rounded-full shadow-md flex items-center gap-1.5">
               <span className="material-symbols-outlined text-sm text-[#84b817]">nature_people</span>
-              <span>Direct from Certified Farm Co-op</span>
+              <span>Direct from Partner Farm Co-op</span>
             </div>
           </div>
         )}

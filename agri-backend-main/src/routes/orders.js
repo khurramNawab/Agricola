@@ -427,6 +427,41 @@ router.get('/:id/invoice', authenticate, async (req, res) => {
   }
 });
 
+// @desc    Email official PDF invoice for order to customer
+// @route   POST /api/v1/orders/:id/email-invoice
+// @access  Private
+router.post('/:id/email-invoice', authenticate, async (req, res) => {
+  try {
+    const rawId = req.params.id;
+    const isObjectId = mongoose.Types.ObjectId.isValid(rawId);
+    const query = isObjectId ? { $or: [{ _id: rawId }, { orderId: rawId }] } : { orderId: rawId };
+    if (req.user.role !== 'admin') {
+      query.user = req.user._id;
+    }
+
+    const order = await Order.findOne(query)
+      .populate('user', 'name email phone userId')
+      .populate('warehouse', 'code name address spocName spocPhone');
+
+    if (!order) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
+    }
+
+    const recipient = req.body?.email || order.email || order.user?.email;
+    if (!recipient) {
+      return res.status(400).json({ success: false, error: { code: 'EMAIL_REQUIRED', message: 'No customer email address on this order' } });
+    }
+
+    const { sendInvoiceEmail } = require('../utils/email');
+    const result = await sendInvoiceEmail(order, recipient);
+
+    return res.status(200).json({ success: true, message: `Tax invoice successfully emailed to ${recipient}`, data: result });
+  } catch (error) {
+    console.error('Customer invoice email error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Failed to email invoice' } });
+  }
+});
+
 const { restoreOrderStock } = require('../utils/stock');
 
 // @desc    Cancel an order (restores stock)

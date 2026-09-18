@@ -5,8 +5,8 @@ const features = [
   {
     icon: "local_shipping",
     iconBg: "bg-[#c9ecc4] text-[#4e6c4c]",
-    title: "100% Traceable to Farms",
-    text: "No generic bulk market pooling. You know the exact district, cooperative leader, and harvest week of every seed packet.",
+    title: "Direct from Partner Farms",
+    text: "No generic bulk market pooling. Sourced directly from trusted grower cooperatives with complete harvest transparency.",
     link: "Explore Farm Direct",
   },
   {
@@ -20,15 +20,15 @@ const features = [
     icon: "warehouse",
     iconBg: "bg-[#ffdcc3] text-[#904d00]",
     title: "Direct Farm Fulfillment",
-    text: "Same-day dispatches directly from our temperature-controlled certified organic facilities.",
+    text: "Same-day dispatches directly from our temperature-controlled modern storage facilities.",
     link: "2–4 Day Delivery Pan-India",
   },
   {
     icon: "biotech",
     iconBg: "bg-[#c9ecc4]/70 text-[#486647]",
-    title: "Triple Lab Tested",
-    text: "Screened by independent certified testing laboratories for lead, cadmium, pesticide residues, aflatoxins, and microbial safety prior to packing.",
-    link: "View COA Lab Reports",
+    title: "NABL Lab Tested",
+    text: "Screened by independent NABL-accredited testing laboratories for lead, cadmium, pesticide residues, aflatoxins, and microbial safety prior to packing.",
+    link: "View Lab Reports",
   },
 ];
 
@@ -48,7 +48,7 @@ const WhyChooseUsSection: React.FC = () => {
 
   const steps = [
     { title: "Confirmed", desc: "Packed & Sealed" },
-    { title: "Dispatched", desc: "From Certified Facility" },
+    { title: "Dispatched", desc: "From Modern Facility" },
     { title: "In Transit", desc: "On Route" },
     { title: "Out for Delivery", desc: "Local Courier" },
     { title: "Delivered", desc: "At Kitchen" },
@@ -183,7 +183,7 @@ const WhyChooseUsSection: React.FC = () => {
               <div className="space-y-1">
                 <h4 className="font-extrabold text-lg text-white">Express Direct Fulfillment</h4>
                 <p className="text-xs text-[#aecfaa] max-w-xs leading-relaxed">
-                  Dispatched directly from state-of-the-art certified temperature-controlled facilities.
+                  Dispatched directly from state-of-the-art temperature-controlled facilities.
                 </p>
               </div>
 

@@ -7,6 +7,7 @@ import { ApiError, type ApiPagination } from "../../lib/api";
 import {
   getOrders,
   getOrder,
+  downloadSampleInvoice,
   ORDER_STATUS_VALUES,
   type AdminOrder,
   type OrderStats,
@@ -197,6 +198,21 @@ export default function Orders() {
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await downloadSampleInvoice();
+                } catch (e: any) {
+                  alert(e.message || "Failed to download sample invoice");
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl bg-white hover:bg-[#c9ecc4] text-[#1e3a1f] font-bold text-xs shadow-xs border border-gray-200 transition-all cursor-pointer whitespace-nowrap"
+              title="Download preview sample GST Tax Invoice to inspect the exact format"
+            >
+              <span className="material-symbols-outlined text-sm text-[#486800]">description</span>
+              <span>Preview Sample Invoice</span>
+            </button>
             <button
               type="submit"
               className="px-6 py-2.5 bg-[#1e3a1f] hover:bg-[#486800] text-white rounded-2xl text-xs font-bold transition-all shadow-xs cursor-pointer"

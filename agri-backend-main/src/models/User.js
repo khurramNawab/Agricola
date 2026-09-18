@@ -89,11 +89,19 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Generate user ID before validation (required field must exist pre-validate)
+// Generate unique user ID before validation (required field must exist pre-validate)
 userSchema.pre('validate', async function(next) {
   if (!this.userId) {
-    const count = await mongoose.model('User').countDocuments();
-    this.userId = `U${String(count + 1).padStart(3, '0')}`;
+    let candidate;
+    let exists = true;
+    let counter = await mongoose.model('User').countDocuments();
+    while (exists) {
+      counter++;
+      candidate = `U${String(counter).padStart(3, '0')}`;
+      const found = await mongoose.model('User').findOne({ userId: candidate });
+      if (!found) exists = false;
+    }
+    this.userId = candidate;
   }
   next();
 });

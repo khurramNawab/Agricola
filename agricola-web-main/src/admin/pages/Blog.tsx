@@ -158,7 +158,7 @@ export default function BlogManagerPage() {
       title: "",
       slug: "",
       excerpt: "",
-      content: `<h2>The Essence of Natural Cultivation</h2>\n<p>Pure farming goes beyond the absence of synthetic chemicals; it is an active restoration of soil biology and nutritional density.</p>\n<h3>Key Principles:</h3>\n<ul>\n  <li><strong>Zero Chemical Inputs:</strong> 100% certified organic methods.</li>\n  <li><strong>Cold-Pressed Purity:</strong> Preserving micronutrients and essential aromas.</li>\n  <li><strong>Farm-to-Door Traceability:</strong> Knowing exactly where your nourishment comes from.</li>\n</ul>\n<blockquote>"When we heal the soil, the soil heals us in return."</blockquote>`,
+      content: `<h2>The Essence of Natural Cultivation</h2>\n<p>Pure farming goes beyond the absence of synthetic chemicals; it is an active restoration of soil biology and nutritional density.</p>\n<h3>Key Principles:</h3>\n<ul>\n  <li><strong>Zero Chemical Inputs:</strong> 100% natural organic methods.</li>\n  <li><strong>Cold-Pressed Purity:</strong> Preserving micronutrients and essential aromas.</li>\n  <li><strong>Farm-to-Door Transparency:</strong> Knowing exactly where your nourishment comes from.</li>\n</ul>\n<blockquote>"When we heal the soil, the soil heals us in return."</blockquote>`,
       coverImage: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=1000",
       category: "Organic Farming",
       customCategory: "",

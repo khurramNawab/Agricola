@@ -169,7 +169,7 @@ export default function SearchOverlay({ open, onClose }: SearchOverlayProps) {
               <span className="material-symbols-outlined animate-spin text-[#486800]">
                 progress_activity
               </span>
-              <span>Searching certified organic harvest…</span>
+              <span>Searching pure harvest…</span>
             </div>
           ) : query.trim() && results.length === 0 ? (
             <div className="py-10 text-center">

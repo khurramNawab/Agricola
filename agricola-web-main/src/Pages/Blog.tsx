@@ -197,7 +197,7 @@ export default function Blog() {
             Stories from the Soil &amp; Harvest Labs
           </h1>
           <p className="text-xs sm:text-sm text-[#434936] leading-relaxed max-w-2xl mx-auto mb-6">
-            Deep-dives into indigenous agricultural genetics, cold-pressed science, GI traceability, and clean ancestral nutrition.
+            Deep-dives into indigenous agricultural genetics, cold-pressed science, GI heritage, and clean ancestral nutrition.
           </p>
 
           {/* Search bar */}

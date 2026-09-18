@@ -18,7 +18,7 @@ const normalizePhone = (phone, countryCode = '+91') => {
 };
 
 const getSeededAdminPhones = () =>
-  (process.env.ADMIN_PHONES || '+917062201992,+919896230791,+918398801430,+919122049005')
+  (process.env.ADMIN_PHONES || '+919896230791,+917099021007,+919122049005')
     .split(',')
     .map((p) => p.trim())
     .filter(Boolean)
@@ -196,7 +196,7 @@ router.post('/firebase-login', [
       (req.body.idToken === 'bypass' || req.body.idToken === 'mock' || req.body.idToken.startsWith('mock-'));
 
     if (isDevBypass) {
-      const configuredPhones = (process.env.ADMIN_PHONES || '+917062201992').split(',').map((p) => p.trim());
+      const configuredPhones = (process.env.ADMIN_PHONES || '+919896230791').split(',').map((p) => p.trim());
       phone = req.body.phone || configuredPhones[0];
     } else {
       try {
@@ -206,7 +206,7 @@ router.post('/firebase-login', [
         // In development only: fall back to the configured phone when Firebase is unconfigured.
         // In production this catch block is skipped so misconfiguration surfaces loudly.
         if (process.env.NODE_ENV !== 'production') {
-          const configuredPhones = (process.env.ADMIN_PHONES || '+917062201992').split(',').map((p) => p.trim());
+          const configuredPhones = (process.env.ADMIN_PHONES || '+919896230791').split(',').map((p) => p.trim());
           phone = req.body.phone || configuredPhones[0];
         } else {
           throw fbErr; // Surfaces as FIREBASE_UNCONFIGURED or invalid-token in production
@@ -297,8 +297,8 @@ router.post('/bypass-login', async (req, res) => {
   try {
     let user = await User.findOne({ role: 'admin' });
     if (!user) {
-      const configuredPhones = (process.env.ADMIN_PHONES || '+917062201992').split(',').map((p) => p.trim());
-      const phone = configuredPhones[0] || '+917062201992';
+      const configuredPhones = (process.env.ADMIN_PHONES || '+919896230791').split(',').map((p) => p.trim());
+      const phone = configuredPhones[0] || '+919896230791';
       user = await User.findOne({ phone });
       if (!user) {
         user = await User.create({

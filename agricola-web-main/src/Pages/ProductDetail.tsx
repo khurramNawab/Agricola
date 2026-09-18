@@ -1,3 +1,4 @@
+import { sanitizeZeroSafeNumber, zeroSafeInputProps } from "../lib/zeroSafe";
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import {
@@ -61,7 +62,7 @@ export default function ProductDetail() {
   const [error, setError] = useState("");
 
   const [activeImage, setActiveImage] = useState(0);
-  const [selectedPackIndex, setSelectedPackIndex] = useState(1); // Default 500g
+  const [selectedPackIndex, setSelectedPackIndex] = useState(0); // Default first available variant
   const [quantity, setQuantity] = useState(1);
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
@@ -166,8 +167,8 @@ export default function ProductDetail() {
   const getPackName = (size: string) => {
     const s = size.toLowerCase();
     if (s.includes("30g") || s.includes("50g")) return "Trial Pouch";
-    if (s.includes("100g") || s.includes("200g")) return "Snack Pouch";
-    if (s.includes("250g")) return "Taster Pouch";
+    if (s.includes("100g") || s.includes("150g") || s.includes("200g")) return "Snack Pouch";
+    if (s.includes("250g") || s.includes("300g")) return "Taster Pouch";
     if (s.includes("500g")) return "Family Pack";
     if (s.includes("1kg") || s.includes("1 kg")) return "Twin Pack / 1 KG";
     if (s.includes("5kg") || s.includes("5 kg")) return "Bulk Pantry Pack";
@@ -557,7 +558,7 @@ export default function ProductDetail() {
               </div>
               <div className="flex items-center gap-1.5">
                 <Warehouse size={15} className="text-[#486800]" />
-                <span>Facility: <strong className="text-[#1e3a1f]">Certified Organic Facility</strong></span>
+                <span>Facility: <strong className="text-[#1e3a1f]">ISO 22000 &amp; HACCP Facility</strong></span>
               </div>
             </div>
 
@@ -572,7 +573,7 @@ export default function ProductDetail() {
                 </span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {packOptions.map((opt, idx) => {
+                {packOptions.slice(0, 5).map((opt, idx) => {
                   const isSelected = activePackIdx === idx;
                   const isOptOutOfStock = !opt.inStock || opt.stock <= 0;
                   return (
@@ -624,7 +625,7 @@ export default function ProductDetail() {
 
             {/* Quantity Stepper & Add to Cart Action Row */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
-              {/* Ergonomic Stepper */}
+              {/* Ergonomic Stepper with Direct Number Input */}
               <div className="flex items-center justify-between bg-white border border-gray-200 rounded-full p-1.5 shadow-xs sm:w-36 shrink-0">
                 <button
                   type="button"
@@ -635,7 +636,28 @@ export default function ProductDetail() {
                 >
                   <span className="material-symbols-outlined text-base">remove</span>
                 </button>
-                <span className="text-sm font-black text-[#1e3a1f] px-2">{quantity}</span>
+                <input
+                  type="text"
+                  {...zeroSafeInputProps}
+                  value={quantity === 0 ? "" : quantity}
+                  onChange={(e) => {
+                    const clean = sanitizeZeroSafeNumber(e.target.value, true);
+                    if (!clean) {
+                      setQuantity("" as any);
+                      return;
+                    }
+                    const val = parseInt(clean, 10);
+                    const maxStock = currentPack.stock > 0 ? currentPack.stock : 999;
+                    setQuantity(Math.min(val, maxStock));
+                  }}
+                  onBlur={() => {
+                    if (!quantity || (quantity as any) < 1) {
+                      setQuantity(1);
+                    }
+                  }}
+                  className="w-12 text-center text-sm font-black text-[#1e3a1f] bg-transparent border-none focus:outline-none focus:ring-0 p-0"
+                  aria-label="Product quantity"
+                />
                 <button
                   type="button"
                   aria-label="Increase quantity"
@@ -980,7 +1002,7 @@ export default function ProductDetail() {
                     />
                     <div className="absolute bottom-0 inset-x-0 p-5 bg-gradient-to-t from-black/80 via-black/30 to-transparent text-white">
                       <span className="text-[10px] text-[#bcf455] font-black uppercase tracking-wider">
-                        Geographical Indication (GI) Certified
+                        Authentic Mithila GI Heritage
                       </span>
                       <p className="text-xs sm:text-sm font-bold mt-1">
                         Geographical Indication Protected Heritage Makhana
@@ -999,7 +1021,7 @@ export default function ProductDetail() {
                   <div className="flex items-center justify-between pb-3 mb-4 border-b border-gray-200">
                     <div>
                       <h3 className="text-sm font-black text-[#1e3a1f]">Nutrition Table (Per 100g Serving)</h3>
-                      <span className="text-[11px] text-gray-500">Certified Laboratory Assay & Analysis</span>
+                      <span className="text-[11px] text-gray-500">NABL Accredited Laboratory Assay &amp; Analysis</span>
                     </div>
                     <span className="bg-[#c9ecc4] text-[#1e3a1f] px-3 py-1 rounded-full text-xs font-black">
                       347 kcal
@@ -1047,7 +1069,7 @@ export default function ProductDetail() {
                   <div className="bg-[#f5f3f0] p-6 rounded-3xl shadow-2xs flex flex-col gap-3">
                     <div className="flex items-center gap-2 text-[#486800] font-black text-sm">
                       <ShieldCheck size={18} />
-                      <span>Certified Batch Test Report</span>
+                      <span>NABL Lab Quality Test Report</span>
                     </div>
                     <p className="text-xs text-[#434936] leading-relaxed">
                       Every batch is third-party screened for 210 pesticide residues, heavy metals (lead, cadmium, mercury), and moisture retention.

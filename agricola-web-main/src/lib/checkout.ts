@@ -179,6 +179,7 @@ export async function getPaymentMethods(
 
 export interface CheckoutConfig {
   freeShippingThreshold: number;
+  standardDeliveryCharge?: number;
   allowCouponStacking?: boolean;
   maxStackedCoupons?: number;
 }
@@ -388,6 +389,21 @@ export async function downloadOrderInvoice(id: string, orderId: string): Promise
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+/** Email authentic GST tax invoice PDF to customer's email. */
+export async function emailOrderInvoice(
+  id: string,
+  email?: string
+): Promise<{ success: boolean; message: string }> {
+  return apiData<{ success: boolean; message: string }>(
+    `/orders/${encodeURIComponent(id)}/email-invoice`,
+    {
+      ...authOpts(),
+      method: "POST",
+      body: email ? { email } : undefined,
+    }
+  );
 }
 
 // Guest order tracking: orderId + the mobile on the order's shipping address.

@@ -3,7 +3,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const Order = require('../models/Order');
 const shipping = require('../utils/shipping');
-const { findProduct, computeCharges, FREE_SHIPPING_THRESHOLD } = require('../utils/pricing');
+const { findProduct, computeCharges, getSettingsConfig, FREE_SHIPPING_THRESHOLD } = require('../utils/pricing');
 const { unitWeightKg } = require('../utils/parcel');
 const { authenticate, requireAdmin, optionalAuth } = require('../middleware/auth');
 
@@ -164,7 +164,8 @@ router.post('/quote', optionalAuth, async (req, res) => {
         declaredValue: subtotal,
         rate: coverage.charge
       });
-      delivery = { charge, free: charge === 0, freeShippingThreshold: FREE_SHIPPING_THRESHOLD };
+      const config = await getSettingsConfig();
+      delivery = { charge, free: charge === 0, freeShippingThreshold: config.freeShippingThreshold };
     }
 
     return res.status(200).json({

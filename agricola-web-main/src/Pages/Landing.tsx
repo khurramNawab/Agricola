@@ -55,7 +55,7 @@ export const Landing = () => {
                   100%
                 </span>
                 <span className="text-xs text-[#434936] font-medium">
-                  Traceable GI Tagged
+                  Mithila GI Heritage
                 </span>
               </div>
             </div>

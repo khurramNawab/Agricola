@@ -54,7 +54,7 @@ export default function PrivacyPolicy() {
               <li>Generating GST invoices and courier labels (Shiprocket &amp; Ekart logistics integration).</li>
               <li>Sending SMS / WhatsApp dispatch alerts, tracking numbers, and delivery milestone notifications.</li>
               <li>Detecting fraudulent orders or unauthorized chargeback attempts.</li>
-              <li>Improving farm batch traceability.</li>
+              <li>Improving farm batch sourcing.</li>
             </ul>
           </section>
 

@@ -947,7 +947,7 @@ export default function Checkout() {
               <div className="flex items-center gap-2 p-3 bg-[#c9ecc4]/30 rounded-2xl text-xs text-[#1e3a1f] border border-[#84b817]/20">
                 <span className="material-symbols-outlined text-lg text-[#486800] shrink-0">handshake</span>
                 <p className="leading-tight text-[11px]">
-                  <strong>Direct Farmer Payout:</strong> Guaranteed fair compensation directly deposited to certified farmer cooperative accounts.
+                  <strong>Direct Farmer Payout:</strong> Guaranteed fair compensation directly deposited to partner farmer cooperative accounts.
                 </p>
               </div>
             </div>
@@ -969,7 +969,7 @@ export default function Checkout() {
                 </div>
                 <div>
                   <span className="font-bold text-[#1e3a1f] block text-xs">Purity Guarantee</span>
-                  <span className="text-[11px] text-gray-400">100% Quality &amp; Purity Certified</span>
+                  <span className="text-[11px] text-gray-400">ISO 22000 &amp; HACCP Quality Assured</span>
                 </div>
               </div>
               <Link
