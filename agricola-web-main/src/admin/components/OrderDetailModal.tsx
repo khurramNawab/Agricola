@@ -2,8 +2,10 @@ import { useState, useEffect, type ReactNode } from "react";
 import {
   updateOrderStatus,
   downloadInvoice,
+  emailAdminOrderInvoice,
   downloadLabel,
   cloneAdminOrder,
+  toggleOrderShippingWaiver,
   getOrderWarehouseAvailability,
   assignOrderWarehouse,
   ORDER_STATUS_VALUES,
@@ -68,6 +70,8 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
   const [invoiceBusy, setInvoiceBusy] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSentMsg, setEmailSentMsg] = useState("");
 
   // Warehouse Assignment State
   const [availability, setAvailability] = useState<OrderWarehouseAvailability | null>(null);
@@ -161,8 +165,40 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
     }
   };
 
+  const handleEmailInvoice = async () => {
+    setError("");
+    setEmailSentMsg("");
+    setEmailSending(true);
+    try {
+      const res = await emailAdminOrderInvoice(order.id);
+      setEmailSentMsg(res.message || "Tax invoice successfully emailed to customer!");
+      setTimeout(() => setEmailSentMsg(""), 6000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to email invoice.");
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
   const [cloning, setCloning] = useState(false);
   const [cloneSuccess, setCloneSuccess] = useState("");
+
+  const [waiverBusy, setWaiverBusy] = useState(false);
+
+  const handleToggleWaiver = async () => {
+    if (!order || waiverBusy) return;
+    setWaiverBusy(true);
+    try {
+      const res = await toggleOrderShippingWaiver(order.id);
+      if (res?.pricing) {
+        order.pricing = { ...order.pricing, ...res.pricing };
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to update delivery charge waiver");
+    } finally {
+      setWaiverBusy(false);
+    }
+  };
 
   const handleClone = async () => {
     if (!window.confirm(`Are you sure you want to clone Order #${order.orderId}? This will create a fresh pending order with the same customer and items.`)) {
@@ -231,6 +267,18 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
             </button>
             <button
               type="button"
+              disabled={invoiceBusy || emailSending}
+              onClick={handleEmailInvoice}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-sky-50 text-[#1e3a1f] font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-50 border border-sky-200"
+              title="Email official Tax Invoice PDF directly to customer"
+            >
+              <span className="material-symbols-outlined text-sm text-sky-700">
+                {emailSending ? "sync" : "mail"}
+              </span>
+              <span>{emailSending ? "Sending…" : "Email to Customer"}</span>
+            </button>
+            <button
+              type="button"
               disabled={invoiceBusy}
               onClick={() => runDownload(() => downloadInvoice(order.id, order.orderId, "4x6"))}
               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-[#c9ecc4] text-[#1e3a1f] font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
@@ -259,6 +307,16 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
             </button>
           </div>
         </div>
+
+        {emailSentMsg && (
+          <div className="mx-6 mt-4 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs font-bold flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-base text-emerald-600">check_circle</span>
+              <span>{emailSentMsg}</span>
+            </div>
+            <button type="button" onClick={() => setEmailSentMsg("")} className="text-emerald-700 hover:text-emerald-900 cursor-pointer">✕</button>
+          </div>
+        )}
 
         {/* Global Error Alert Banner */}
         {error && (
@@ -569,6 +627,32 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
                 </h4>
                 <Row label="Items Subtotal" value={inr(order.pricing.subtotal)} />
                 <Row label="Cold-Chain Delivery" value={inr(order.pricing.shipping)} />
+                {/* Admin Delivery Charge Waiver Control */}
+                <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-[#1e3a1f] block text-[11px]">Delivery Charge Waiver:</span>
+                    <span className="text-[10px] text-gray-500">
+                      {order.pricing.shippingWaived ? "Waived (Invoice displays Free)" : "Normal charge applied"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={waiverBusy}
+                    onClick={handleToggleWaiver}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer disabled:opacity-50 ${
+                      order.pricing.shippingWaived
+                        ? "bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300"
+                        : "bg-[#eaf3db] text-[#486800] hover:bg-[#c9ecc4] border border-[#84b817]/40"
+                    }`}
+                  >
+                    {waiverBusy
+                      ? "Updating…"
+                      : order.pricing.shippingWaived
+                      ? "Restore Fee"
+                      : "Waive Delivery Fee"}
+                  </button>
+                </div>
+
                 {order.pricing.tax > 0 && <Row label="GST & Taxes" value={inr(order.pricing.tax)} />}
                 {order.pricing.discount > 0 && (
                   <Row label="Discount" value={`- ${inr(order.pricing.discount)}`} />

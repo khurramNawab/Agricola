@@ -75,7 +75,7 @@ const BestSellersSection: React.FC = () => {
               <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>local_fire_department</span>
               <span>Most Loved By Over 45,000 Homes</span>
             </div>
-            <h2 className="text-3xl font-extrabold text-[#1b1c1a]">Our Certified Best Sellers</h2>
+            <h2 className="text-3xl font-extrabold text-[#1b1c1a]">Our Best Sellers</h2>
             <p className="mt-1 text-sm text-[#434936]">
               Hand-batched within the last 14 days. Sealed in oxygen-barrier eco canisters.
             </p>

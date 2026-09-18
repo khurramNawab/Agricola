@@ -33,9 +33,9 @@ export default function TermsConditions() {
           </section>
 
           <section className="space-y-3 text-xs sm:text-sm text-[#434936]">
-            <h2 className="text-base font-bold text-[#1e3a1f]">2. Organic Quality &amp; Batch Traceability</h2>
+            <h2 className="text-base font-bold text-[#1e3a1f]">2. Natural Quality &amp; Harvest Provenance</h2>
             <p>
-              All products sold on AgriCola are 100% farm-sourced from partner agrarian cooperatives in Bihar, Haryana, and Uttarakhand. Every batch is tested for moisture, pesticide residue, and purity before eco-vacuum sealing. Batch certificates (COAs) can be reviewed using the batch code printed on your pouch.
+              All products sold on AgriCola are 100% farm-sourced from partner agrarian cooperatives in Bihar, Haryana, and Uttarakhand. Every batch is tested for moisture, pesticide residue, and purity before eco-vacuum sealing. Batch test reports (COAs) can be reviewed using the batch code printed on your pouch.
             </p>
           </section>
 
@@ -51,7 +51,7 @@ export default function TermsConditions() {
           <section className="space-y-3 text-xs sm:text-sm text-[#434936]">
             <h2 className="text-base font-bold text-[#1e3a1f]">4. Delivery &amp; Dispatch Timeline</h2>
             <p>
-              Orders are dispatched within 24 business hours from our certified central fulfillment facilities. Standard delivery transit is 2 to 4 business days across metro cities and 3 to 6 days for remote regions. Real-time AWB courier tracking is provided via SMS and on the <Link to="/track" className="text-[#486800] underline font-bold">Track Order page</Link>.
+              Orders are dispatched within 24 business hours from our central fulfillment facilities. Standard delivery transit is 2 to 4 business days across metro cities and 3 to 6 days for remote regions. Real-time AWB courier tracking is provided via SMS and on the <Link to="/track" className="text-[#486800] underline font-bold">Track Order page</Link>.
             </p>
           </section>
 

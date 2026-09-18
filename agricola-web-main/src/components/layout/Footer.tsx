@@ -39,7 +39,7 @@ const socials = [
   },
   { label: "X", Icon: FaXTwitter, href: "#" },
   { label: "LinkedIn", Icon: FaLinkedinIn, href: "#" },
-  { label: "Facebook", Icon: FaFacebookF, href: "#" },
+  { label: "Facebook", Icon: FaFacebookF, href: "https://www.facebook.com/profile.php?id=61594140490276" },
 ];
 
 const legalLinks = [
@@ -49,10 +49,11 @@ const legalLinks = [
 ];
 
 const certifications = [
-  "100% Certified Organic",
-  "Quality Tested & Verified",
-  "Lab Certified Pure",
-  "Direct Farm Certified",
+  "ISO 22000 Standards",
+  "HACCP Food Safety",
+  "GMP Quality Assured",
+  "100% Non-GMO Verified",
+  "NABL Lab Tested Pure",
 ];
 
 const Footer: React.FC = () => {
@@ -95,7 +96,7 @@ const Footer: React.FC = () => {
               Pure Harvests To Your Kitchen
             </span>
             <p className="text-xs sm:text-sm text-[#434936] mt-1 leading-relaxed">
-              Subscribe for farm harvest updates, certified lab batch alerts, and receive 10% off your first organic order with code{" "}
+              Subscribe for farm harvest updates, fresh lab quality reports, and receive 10% off your first order with code{" "}
               <strong className="text-[#486800] font-extrabold tracking-wider bg-[#c9ecc4]/60 px-1.5 py-0.5 rounded">
                 HARVEST10
               </strong>
@@ -237,7 +238,7 @@ const Footer: React.FC = () => {
               <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>
                 verified
               </span>
-              <span>Fair-Trade Certified Sourcing</span>
+              <span>Direct Farmer Fair Sourcing</span>
             </div>
           </div>
         </div>

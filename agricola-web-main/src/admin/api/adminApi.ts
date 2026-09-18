@@ -485,7 +485,15 @@ export interface OrderDetail extends Omit<AdminOrder, "customer" | "items"> {
     subtotal: number;
     image: string | null;
   }[];
-  pricing: { subtotal: number; shipping: number; tax: number; discount: number; total: number } | null;
+  pricing: {
+    subtotal: number;
+    shipping: number;
+    tax: number;
+    discount: number;
+    total: number;
+    shippingWaived?: boolean;
+    originalShipping?: number;
+  } | null;
   customer: { name: string; email: string | null; phone: string; userId: string } | null;
   shippingAddress: {
     name?: string;
@@ -581,6 +589,36 @@ async function downloadPdf(path: string, filename: string): Promise<void> {
 export async function downloadInvoice(id: string, orderId: string, size?: "4x6"): Promise<void> {
   const q = size === "4x6" ? "?size=4x6" : "";
   await downloadPdf(`/admin/orders/${id}/invoice${q}`, `invoice-${orderId}${size === "4x6" ? "-4x6" : ""}.pdf`);
+}
+
+/** Download a sample preview GST tax invoice PDF. */
+export async function downloadSampleInvoice(size?: "4x6"): Promise<void> {
+  const q = size === "4x6" ? "?size=4x6" : "";
+  await downloadPdf(`/admin/orders/sample-invoice${q}`, `sample-tax-invoice${size === "4x6" ? "-4x6" : ""}.pdf`);
+}
+
+/** Email a sample preview GST tax invoice PDF to specified address. */
+export async function emailSampleInvoice(email: string): Promise<{ success: boolean; message: string }> {
+  return apiData<{ success: boolean; message: string }>("/admin/orders/sample-invoice/email", {
+    method: "POST",
+    body: { email },
+  });
+}
+
+/** Email official GST tax invoice PDF to customer. */
+export async function emailAdminOrderInvoice(id: string, email?: string): Promise<{ success: boolean; message: string }> {
+  return apiData<{ success: boolean; message: string }>(`/admin/orders/${id}/email-invoice`, {
+    method: "POST",
+    body: email ? { email } : undefined,
+  });
+}
+
+/** Toggle or set delivery charge waiver on an order. */
+export async function toggleOrderShippingWaiver(id: string, waive?: boolean): Promise<{ orderId: string; pricing: any }> {
+  return apiData<{ orderId: string; pricing: any }>(`/admin/orders/${id}/shipping-waiver`, {
+    method: "PATCH",
+    body: waive !== undefined ? { waive } : {},
+  });
 }
 
 // Fetch the 4×6 thermal shipping/address label PDF.
@@ -914,9 +952,10 @@ export interface DeleteCouponResponse {
 }
 
 export async function deleteAdminCoupon(id: string): Promise<DeleteCouponResponse> {
-  return apiData<DeleteCouponResponse>(`/admin/coupons/${id}`, {
+  const env = await apiFetch<any>(`/admin/coupons/${id}`, {
     method: "DELETE",
   });
+  return (env.data || env) as DeleteCouponResponse;
 }
 
 export async function toggleAdminCoupon(id: string): Promise<{ id: string; isActive: boolean }> {

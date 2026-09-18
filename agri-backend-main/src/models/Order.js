@@ -109,6 +109,13 @@ const orderSchema = new mongoose.Schema({
     total: {
       type: Number,
       required: true
+    },
+    shippingWaived: {
+      type: Boolean,
+      default: false
+    },
+    originalShipping: {
+      type: Number
     }
   },
   status: {

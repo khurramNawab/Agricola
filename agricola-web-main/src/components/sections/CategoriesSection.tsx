@@ -114,7 +114,7 @@ const CategoriesSection: React.FC = () => {
               const meta = CATEGORY_META_MAP[category.slug] || {
                 badge: "Farm Direct",
                 badgeBg: "bg-[#84b817] text-white",
-                fallbackDescription: "Certified organic harvest direct from sustainable Indian farms.",
+                fallbackDescription: "Pure farm-direct harvest sourced from sustainable Indian farms.",
                 fallbackPrice: 199,
               };
               const description = category.description || meta.fallbackDescription;

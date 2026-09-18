@@ -51,6 +51,7 @@ router.get('/config', async (req, res) => {
       success: true,
       data: {
         freeShippingThreshold: setting?.freeShippingThreshold || FREE_SHIPPING_THRESHOLD,
+        standardDeliveryCharge: typeof setting?.standardDeliveryCharge === 'number' ? setting.standardDeliveryCharge : 50,
         allowCouponStacking: setting?.allowCouponStacking ?? false,
         maxStackedCoupons: setting?.maxStackedCoupons || 2,
         enableCod: setting?.enableCod ?? true,
@@ -62,6 +63,7 @@ router.get('/config', async (req, res) => {
       success: true,
       data: {
         freeShippingThreshold: FREE_SHIPPING_THRESHOLD,
+        standardDeliveryCharge: 50,
         allowCouponStacking: false,
         maxStackedCoupons: 2,
         enableCod: true,

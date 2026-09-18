@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import Footer from "../components/layout/Footer";
 import { useStorefront } from "../storefront/StorefrontContext";
-import { getOrder, downloadOrderInvoice, type OrderDetail } from "../lib/checkout";
+import { getOrder, downloadOrderInvoice, emailOrderInvoice, type OrderDetail } from "../lib/checkout";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1582793988951-9aed5509eb97?auto=format&fit=crop&w=400&q=70";
@@ -18,6 +18,8 @@ export default function OrderDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
+  const [emailingInvoice, setEmailingInvoice] = useState(false);
+  const [emailSentMsg, setEmailSentMsg] = useState("");
 
   const handleDownloadInvoice = async () => {
     if (!order || downloadingInvoice) return;
@@ -28,6 +30,21 @@ export default function OrderDetails() {
       alert(err instanceof Error ? err.message : "Failed to download invoice");
     } finally {
       setDownloadingInvoice(false);
+    }
+  };
+
+  const handleEmailInvoice = async () => {
+    if (!order || emailingInvoice) return;
+    setEmailingInvoice(true);
+    setEmailSentMsg("");
+    try {
+      const res = await emailOrderInvoice(order.id || id);
+      setEmailSentMsg(res.message || "Tax invoice sent to your email!");
+      setTimeout(() => setEmailSentMsg(""), 6000);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to email invoice");
+    } finally {
+      setEmailingInvoice(false);
     }
   };
 
@@ -180,7 +197,7 @@ export default function OrderDetails() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
               disabled={downloadingInvoice}
@@ -195,12 +212,15 @@ export default function OrderDetails() {
             </button>
             <button
               type="button"
-              onClick={() => window.print()}
-              className="px-4 py-2.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50 text-xs font-bold text-[#1e3a1f] hidden sm:flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
-              title="Print summary"
+              disabled={emailingInvoice}
+              onClick={handleEmailInvoice}
+              className="px-4 py-2.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50 text-xs font-bold text-[#1e3a1f] flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+              title="Email official Tax Invoice PDF to your email"
             >
-              <span className="material-symbols-outlined text-sm">print</span>
-              <span>Print</span>
+              <span className={`material-symbols-outlined text-sm ${emailingInvoice ? "animate-spin" : ""}`}>
+                {emailingInvoice ? "sync" : "mail"}
+              </span>
+              <span>{emailingInvoice ? "Sending Email…" : "Email Invoice"}</span>
             </button>
             <Link
               to="/products"
@@ -211,6 +231,13 @@ export default function OrderDetails() {
             </Link>
           </div>
         </section>
+
+        {emailSentMsg && (
+          <div className="mb-6 p-4 rounded-2xl bg-[#c9ecc4]/60 border border-[#84b817]/40 text-[#1e3a1f] text-xs sm:text-sm font-bold flex items-center gap-2 shadow-2xs animate-in fade-in">
+            <span className="material-symbols-outlined text-[#486800]">mark_email_read</span>
+            <span>{emailSentMsg}</span>
+          </div>
+        )}
 
         {/* Visual Milestones Stepper Progress */}
         {order.status !== "cancelled" && (
@@ -376,9 +403,9 @@ export default function OrderDetails() {
               <div className="mt-4 p-4 rounded-2xl bg-[#f5f3f0] flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-2 text-[#1e3a1f]">
                   <span className="material-symbols-outlined text-[#486800] text-lg">verified</span>
-                  <span className="font-medium">All batches certified for purity, zero pesticides &amp; heavy metals.</span>
+                  <span className="font-medium">All batches lab-tested for purity, zero pesticides &amp; heavy metals.</span>
                 </div>
-                <span className="text-[#486800] font-bold">100% Certified Pure &amp; Traceable</span>
+                <span className="text-[#486800] font-bold">100% Farm Pure &amp; Quality Verified</span>
               </div>
             </div>
 

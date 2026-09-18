@@ -34,6 +34,7 @@ import {
   type CouponPayload,
   type CouponRedemption,
 } from "../api/adminApi";
+import { sanitizeZeroSafeNumber, zeroSafeInputProps } from "../../lib/zeroSafe";
 
 export default function Coupons() {
   const [coupons, setCoupons] = useState<AdminCoupon[]>([]);
@@ -61,6 +62,11 @@ export default function Coupons() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [allowStacking, setAllowStacking] = useState(false);
   const [updatingStacking, setUpdatingStacking] = useState(false);
+
+  // In-app Delete Confirmation Modal & Toast
+  const [couponToDelete, setCouponToDelete] = useState<AdminCoupon | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [toast, setToast] = useState<{ type: "success" | "info" | "error"; message: string } | null>(null);
 
   // Form fields
   const [formData, setFormData] = useState<CouponPayload>({
@@ -236,19 +242,39 @@ export default function Coupons() {
     }
   };
 
-  const handleDelete = async (coupon: AdminCoupon, e: React.MouseEvent) => {
+  const handleDeleteClick = (coupon: AdminCoupon, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm(`Are you sure you want to delete coupon "${coupon.code}"?`)) {
-      return;
-    }
+    setCouponToDelete(coupon);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!couponToDelete) return;
     try {
-      const res = await deleteAdminCoupon(coupon.id);
-      if (res?.message) {
-        alert(res.message);
+      setIsDeleting(true);
+      const res = await deleteAdminCoupon(couponToDelete.id);
+      if (res?.deactivated) {
+        setToast({
+          type: "info",
+          message: res.message || `Coupon "${couponToDelete.code}" was deactivated to preserve past order history.`,
+        });
+      } else {
+        setToast({
+          type: "success",
+          message: res?.message || `Coupon "${couponToDelete.code}" permanently deleted successfully.`,
+        });
       }
+      setCoupons((prev) => prev.filter((c) => c.id !== couponToDelete.id));
+      setCouponToDelete(null);
+      setTimeout(() => setToast(null), 5000);
       fetchCoupons();
     } catch (err: any) {
-      alert(err.message || "Failed to delete coupon");
+      setToast({
+        type: "error",
+        message: err.message || "Failed to delete coupon.",
+      });
+      setTimeout(() => setToast(null), 5000);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -406,6 +432,77 @@ export default function Coupons() {
           </div>
         </div>
       </div>
+
+      {/* Modern In-App Toast Banner */}
+      {toast && (
+        <div
+          className={`p-4 rounded-2xl border flex items-center justify-between gap-3 text-sm font-semibold transition-all animate-in fade-in ${
+            toast.type === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : toast.type === 'info'
+              ? 'bg-blue-50 border-blue-200 text-blue-900'
+              : 'bg-red-50 border-red-200 text-red-900'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />}
+            {toast.type === 'info' && <AlertCircle className="w-5 h-5 text-blue-600 shrink-0" />}
+            {toast.type === 'error' && <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />}
+            <span>{toast.message}</span>
+          </div>
+          <button
+            onClick={() => setToast(null)}
+            className="text-gray-400 hover:text-gray-700 p-1 rounded-lg cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Modern In-App Delete Confirmation Modal */}
+      {couponToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-gray-100 text-center space-y-4 animate-in zoom-in-95">
+            <div className="w-14 h-14 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto text-2xl shadow-inner">
+              <Trash2 className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-gray-900">Delete Coupon</h3>
+              <p className="text-sm text-gray-600 mt-2">
+                Are you sure you want to delete coupon <span className="font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded border">"{couponToDelete.code}"</span>?
+              </p>
+              <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                If this coupon was never used, it will be completely deleted. If it was already redeemed in past orders, it will be safely deactivated to protect audit history.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 pt-3">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setCouponToDelete(null)}
+                className="flex-1 py-3 px-4 rounded-xl border border-gray-200 text-sm font-bold text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="flex-1 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-bold shadow-md transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Deleting…</span>
+                  </>
+                ) : (
+                  <span>Yes, Delete</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filter & Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
@@ -621,8 +718,8 @@ export default function Coupons() {
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={(e) => handleDelete(coupon, e)}
-                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                            onClick={(e) => handleDeleteClick(coupon, e)}
+                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -754,12 +851,19 @@ export default function Coupons() {
                     {formData.discountType === "percentage" ? "Discount Percentage (%) *" : "Flat Discount (₹) *"}
                   </label>
                   <input
-                    type="number"
-                    min="1"
-                    max={formData.discountType === "percentage" ? "100" : "10000"}
+                    type="text"
+                    {...zeroSafeInputProps}
                     required
-                    value={formData.discountValue}
-                    onChange={(e) => setFormData({ ...formData, discountValue: Number(e.target.value) })}
+                    value={formData.discountValue === 0 ? "0" : (formData.discountValue || "")}
+                    onChange={(e) => {
+                      const clean = sanitizeZeroSafeNumber(e.target.value);
+                      setFormData({ ...formData, discountValue: clean === "" ? ("" as any) : Number(clean) });
+                    }}
+                    onBlur={() => {
+                      if (!formData.discountValue) {
+                        setFormData((prev) => ({ ...prev, discountValue: 1 }));
+                      }
+                    }}
                     className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#84b817]/30 focus:border-[#84b817]"
                   />
                 </div>
@@ -772,11 +876,19 @@ export default function Coupons() {
                     Min. Order Value (₹)
                   </label>
                   <input
-                    type="number"
-                    min="0"
+                    type="text"
+                    {...zeroSafeInputProps}
                     placeholder="0 for no minimum"
-                    value={formData.minOrderValue}
-                    onChange={(e) => setFormData({ ...formData, minOrderValue: Number(e.target.value) })}
+                    value={formData.minOrderValue === 0 ? "0" : (formData.minOrderValue || "")}
+                    onChange={(e) => {
+                      const clean = sanitizeZeroSafeNumber(e.target.value);
+                      setFormData({ ...formData, minOrderValue: clean === "" ? ("" as any) : Number(clean) });
+                    }}
+                    onBlur={() => {
+                      if (formData.minOrderValue === ("" as any)) {
+                        setFormData((prev) => ({ ...prev, minOrderValue: 0 }));
+                      }
+                    }}
                     className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#84b817]/30 focus:border-[#84b817]"
                   />
                 </div>
@@ -787,16 +899,17 @@ export default function Coupons() {
                       Max Discount Cap (₹)
                     </label>
                     <input
-                      type="number"
-                      min="1"
+                      type="text"
+                      {...zeroSafeInputProps}
                       placeholder="e.g. 500 (optional)"
-                      value={formData.maxDiscountCap || ""}
-                      onChange={(e) =>
+                      value={formData.maxDiscountCap ?? ""}
+                      onChange={(e) => {
+                        const clean = sanitizeZeroSafeNumber(e.target.value);
                         setFormData({
                           ...formData,
-                          maxDiscountCap: e.target.value ? Number(e.target.value) : null,
-                        })
-                      }
+                          maxDiscountCap: clean === "" ? null : Number(clean),
+                        });
+                      }}
                       className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#84b817]/30 focus:border-[#84b817]"
                     />
                   </div>
@@ -837,16 +950,17 @@ export default function Coupons() {
                     Total Usage Limit (All users)
                   </label>
                   <input
-                    type="number"
-                    min="1"
+                    type="text"
+                    {...zeroSafeInputProps}
                     placeholder="Unlimited if left blank"
-                    value={formData.totalUsageLimit || ""}
-                    onChange={(e) =>
+                    value={formData.totalUsageLimit ?? ""}
+                    onChange={(e) => {
+                      const clean = sanitizeZeroSafeNumber(e.target.value);
                       setFormData({
                         ...formData,
-                        totalUsageLimit: e.target.value ? Number(e.target.value) : null,
-                      })
-                    }
+                        totalUsageLimit: clean === "" ? null : Number(clean),
+                      });
+                    }}
                     className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#84b817]/30 focus:border-[#84b817]"
                   />
                 </div>
@@ -855,10 +969,18 @@ export default function Coupons() {
                     Per User Limit
                   </label>
                   <input
-                    type="number"
-                    min="1"
-                    value={formData.perUserLimit}
-                    onChange={(e) => setFormData({ ...formData, perUserLimit: Number(e.target.value) })}
+                    type="text"
+                    {...zeroSafeInputProps}
+                    value={formData.perUserLimit === 0 ? "0" : (formData.perUserLimit || "")}
+                    onChange={(e) => {
+                      const clean = sanitizeZeroSafeNumber(e.target.value);
+                      setFormData({ ...formData, perUserLimit: clean === "" ? ("" as any) : Number(clean) });
+                    }}
+                    onBlur={() => {
+                      if (!formData.perUserLimit) {
+                        setFormData((prev) => ({ ...prev, perUserLimit: 1 }));
+                      }
+                    }}
                     className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#84b817]/30 focus:border-[#84b817]"
                   />
                 </div>

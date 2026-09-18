@@ -84,7 +84,7 @@ export default function ComingSoonUtensils() {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                 <div className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur-md p-3.5 rounded-2xl text-[#1e3a1f] text-xs font-bold flex items-center justify-between">
-                  <span>100% Lab Certified Lead-Free Kansa</span>
+                  <span>100% Lab Tested Lead-Free Kansa</span>
                   <span className="px-2 py-0.5 rounded-full bg-[#ffdcc3] text-[#904d00] text-[10px]">
                     Artisan Made
                   </span>

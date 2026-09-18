@@ -85,14 +85,14 @@ describe('Admin Support & Settings Module', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         storeName: 'AgriCola Pure Living',
-        freeShippingThreshold: 1200,
+        freeShippingThreshold: 799,
         supportPhone: '+91 9012659999'
       });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.storeName).toBe('AgriCola Pure Living');
-    expect(res.body.data.freeShippingThreshold).toBe(1200);
+    expect(res.body.data.freeShippingThreshold).toBe(799);
     expect(res.body.data.supportPhone).toBe('+91 9012659999');
   });
 });

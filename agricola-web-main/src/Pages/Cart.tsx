@@ -15,6 +15,7 @@ export default function Cart() {
     useStorefront();
   const [busy, setBusy] = useState(false);
   const [freeThreshold, setFreeThreshold] = useState<number>(799);
+  const [standardDeliveryFee, setStandardDeliveryFee] = useState<number>(50);
   const [delivery, setDelivery] = useState<DeliveryQuote | null>(null);
   const [couponCode, setCouponCode] = useState("");
   // appliedCoupons stores { code, discount } from the backend
@@ -69,6 +70,7 @@ export default function Cart() {
     getCheckoutConfig()
       .then((c) => {
         if (c.freeShippingThreshold) setFreeThreshold(c.freeShippingThreshold);
+        if (typeof c.standardDeliveryCharge === "number") setStandardDeliveryFee(c.standardDeliveryCharge);
         if (c.allowCouponStacking !== undefined) setAllowStacking(!!c.allowCouponStacking);
       })
       .catch(() => {});
@@ -149,13 +151,11 @@ export default function Cart() {
   // Calculations — discount amounts come from the backend (real values)
   const discountAmount = appliedCoupons.reduce((sum, c) => sum + (c.discount || 0), 0);
   const isFreeDelivery = cart.subtotal >= freeThreshold;
-  const shippingCharge = delivery?.delivery
-    ? delivery.delivery.free
-      ? 0
-      : delivery.delivery.charge
-    : isFreeDelivery
+  const shippingCharge = isFreeDelivery
     ? 0
-    : 49;
+    : delivery?.delivery && !delivery.delivery.free
+    ? delivery.delivery.charge
+    : standardDeliveryFee;
   const totalPayable = Math.max(0, cart.subtotal - discountAmount + shippingCharge);
   const progressPercent = Math.min(100, Math.round((cart.subtotal / freeThreshold) * 100));
   const remainingForFree = Math.max(0, freeThreshold - cart.subtotal);
@@ -197,7 +197,7 @@ export default function Cart() {
             </div>
             <div className="flex items-center gap-1.5 text-[#486800] text-xs font-bold bg-[#c9ecc4]/40 px-3 py-1.5 rounded-xl">
               <span className="material-symbols-outlined text-base">verified_user</span>
-              <span>100% Certified Purity &amp; Traceable</span>
+              <span>100% Pure &amp; Quality Tested</span>
             </div>
           </div>
 
@@ -237,7 +237,7 @@ export default function Cart() {
             </div>
             <h2 className="text-2xl font-bold text-[#1e3a1f] mb-2">Your Harvest Cart is Empty</h2>
             <p className="text-sm text-[#434936] mb-6 leading-relaxed">
-              Discover farm-direct GI-tagged Mithila Makhana, cold-pressed oils, and certified organic harvest fresh from the farm.
+              Discover farm-direct Mithila Makhana, whole leaf teas, and fresh harvests directly from Indian farms.
             </p>
             <button
               onClick={() => navigate("/products")}

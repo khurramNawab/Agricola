@@ -276,7 +276,7 @@ describe('Client Issues 1-7 Verification Suite', () => {
       expect(check).toBeNull();
     });
 
-    test('Soft deactivates coupon if historical orders redeemed it', async () => {
+    test('Permanently deletes coupon even if historical orders redeemed it', async () => {
       const usedCoupon = await Coupon.create({
         code: 'CPN_TEST_USED',
         discountType: 'fixed',
@@ -292,11 +292,10 @@ describe('Client Issues 1-7 Verification Suite', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      expect(res.body.deactivated).toBe(true);
+      expect(res.body.deleted).toBe(true);
 
       const check = await Coupon.findById(usedCoupon._id);
-      expect(check).not.toBeNull();
-      expect(check.isActive).toBe(false);
+      expect(check).toBeNull();
     });
   });
 

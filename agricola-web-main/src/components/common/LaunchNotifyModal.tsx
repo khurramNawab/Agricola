@@ -108,7 +108,7 @@ export const LaunchNotifyModal: React.FC<LaunchNotifyModalProps> = ({
             {itemInterestTitle ? `Reserve Access: ${itemInterestTitle}` : "Exclusive Launch Privilege"}
           </h3>
           <p className="text-[#c3dac0] text-xs sm:text-sm mt-1 leading-relaxed">
-            Be the very first in India to experience pure bell-metal cookware and certified heirloom gardening kits with an instant 15% VIP discount voucher.
+            Be the very first in India to experience pure bell-metal cookware and heirloom gardening kits with an instant 15% VIP discount voucher.
           </p>
         </div>
 

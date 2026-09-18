@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Settings, LogOut, Menu, X, Heart, BookOpen } from "lucide-react";
 import { NavLink, useNavigate, Link } from "react-router-dom";
 import SearchOverlay from "./SearchOverlay";
+import { getCheckoutConfig } from "../../lib/checkout";
 import { useStorefront } from "../../storefront/StorefrontContext";
 import { AgriWordmark } from "../../assets/icons";
 
@@ -19,6 +20,17 @@ const navItems: Array<{ to: string; label: string; end?: boolean; badge?: string
 const Header: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [freeThreshold, setFreeThreshold] = useState<number>(799);
+
+  useEffect(() => {
+    getCheckoutConfig()
+      .then((cfg) => {
+        if (cfg?.freeShippingThreshold) {
+          setFreeThreshold(cfg.freeShippingThreshold);
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -79,7 +91,7 @@ const Header: React.FC = () => {
           <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
             <span className="material-symbols-outlined text-sm text-[#84b817]">eco</span>
             <p className="text-[11.5px] sm:text-xs tracking-wide font-medium">
-              100% Farm-Direct Certified Organic • Free shipping across India on orders above ₹799 • Direct farmer provenance
+              100% Farm-Direct Pure Living • Free shipping across India on orders above ₹{freeThreshold.toLocaleString("en-IN")} • Direct farmer provenance
             </p>
           </div>
           {/* Top Right: Track Your Order CTA */}
@@ -254,7 +266,7 @@ const Header: React.FC = () => {
         </div>
 
         {/* Tier 3: Subcategory Navigation Bar (Enlarged, Spacious, Blogs Added) */}
-        <nav className="hidden md:flex items-center justify-center gap-7 lg:gap-9 overflow-x-auto py-3 border-t border-gray-100 text-sm font-bold text-[#434936]">
+        <nav className="hidden md:flex items-center justify-start lg:justify-center gap-7 lg:gap-9 overflow-x-auto py-3 px-4 border-t border-gray-100 text-sm font-bold text-[#434936]">
           <NavLink
             to="/"
             end

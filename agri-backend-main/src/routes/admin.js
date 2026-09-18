@@ -1047,8 +1047,11 @@ const mapProductPayload = async (body) => {
       stock: Math.max(0, parseInt(v.stock, 10) || 0),
       price: v.price !== undefined && v.price !== null && v.price !== '' ? Math.max(0, Number(v.price) || 0) : undefined
     })).filter((v) => v.size);
-    if (mapped.variantStocks.length > 0 && body.stock === undefined) {
-      mapped.stock = mapped.variantStocks.reduce((sum, v) => sum + v.stock, 0);
+    if (mapped.variantStocks.length > 0) {
+      mapped.sizes = mapped.variantStocks.map((v) => v.size);
+      if (body.stock === undefined) {
+        mapped.stock = mapped.variantStocks.reduce((sum, v) => sum + v.stock, 0);
+      }
     }
   }
   if (body.images !== undefined) mapped.images = normalizeImages(body.images);
@@ -1555,6 +1558,191 @@ router.get('/orders/:id/invoice', async (req, res) => {
     if (!res.headersSent) {
       res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to generate invoice' } });
     }
+  }
+});
+
+// @route   POST /api/v1/admin/orders/:id/email-invoice
+// @desc    Email official PDF invoice for order to customer
+router.post('/orders/:id/email-invoice', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
+    }
+    const order = await Order.findById(req.params.id)
+      .populate('user', 'name email phone userId')
+      .populate('warehouse', 'code name address shiprocketPickupNickname spocName spocPhone');
+    if (!order) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
+    }
+
+    const recipient = req.body?.email || order.email || order.user?.email;
+    if (!recipient) {
+      return res.status(400).json({ success: false, error: { code: 'EMAIL_REQUIRED', message: 'No customer email address on this order' } });
+    }
+
+    const { sendInvoiceEmail } = require('../utils/email');
+    const result = await sendInvoiceEmail(order, recipient);
+    return res.status(200).json({ success: true, message: `Tax invoice successfully emailed to ${recipient}`, data: result });
+  } catch (error) {
+    console.error('Admin invoice email error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Failed to email invoice' } });
+  }
+});
+
+// @route   GET /api/v1/admin/orders/sample-invoice[?size=4x6]
+// @desc    Download a sample official GST Tax Invoice PDF for admin preview
+router.get('/orders/sample-invoice', async (req, res) => {
+  try {
+    let order = await Order.findOne()
+      .sort({ createdAt: -1 })
+      .populate('user', 'name email phone userId')
+      .populate('warehouse', 'code name address shiprocketPickupNickname spocName spocPhone');
+
+    if (!order) {
+      order = {
+        orderId: 'SAMPLE-ORD-2026-PREVIEW',
+        createdAt: new Date(),
+        paymentMethod: 'razorpay',
+        paymentStatus: 'paid',
+        shippingAddress: {
+          name: 'Sample Customer',
+          phone: '+919012659000',
+          street: 'Flat No. 12, Green Farms Colony',
+          city: 'Kaithal',
+          state: 'Haryana',
+          pincode: '136027'
+        },
+        items: [
+          { name: 'Premium Organic Jumbo Makhana 200g', weight: '200g', quantity: 2, price: 599, subtotal: 1198 }
+        ],
+        pricing: {
+          subtotal: 1198,
+          discount: 0,
+          shipping: 0,
+          tax: 0,
+          total: 1198
+        }
+      };
+    }
+
+    const thermal = req.query.size === '4x6';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="sample-invoice${thermal ? '-4x6' : ''}.pdf"`);
+    (thermal ? streamInvoice4x6 : streamInvoice)(order, res);
+  } catch (error) {
+    console.error('Sample invoice generation error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to generate sample invoice' } });
+    }
+  }
+});
+
+// @route   POST /api/v1/admin/orders/sample-invoice/email
+// @desc    Email sample authentic Tax Invoice PDF to specified recipient (for verification)
+router.post('/orders/sample-invoice/email', async (req, res) => {
+  try {
+    const targetEmail = String(req.body.email || '').trim().toLowerCase();
+    if (!targetEmail || !/^\S+@\S+\.\S+$/.test(targetEmail)) {
+      return res.status(400).json({ success: false, error: { code: 'INVALID_EMAIL', message: 'A valid email address is required' } });
+    }
+
+    let order = await Order.findOne()
+      .sort({ createdAt: -1 })
+      .populate('user', 'name email phone userId')
+      .populate('warehouse', 'code name address shiprocketPickupNickname spocName spocPhone');
+
+    if (!order) {
+      order = {
+        orderId: 'SAMPLE-ORD-2026-PREVIEW',
+        createdAt: new Date(),
+        paymentMethod: 'razorpay',
+        paymentStatus: 'paid',
+        shippingAddress: {
+          name: 'Sample Customer',
+          phone: '+919012659000',
+          street: 'Flat No. 12, Green Farms Colony',
+          city: 'Kaithal',
+          state: 'Haryana',
+          pincode: '136027'
+        },
+        items: [
+          { name: 'Premium Organic Jumbo Makhana 200g', weight: '200g', quantity: 2, price: 599, subtotal: 1198 }
+        ],
+        pricing: {
+          subtotal: 1198,
+          discount: 0,
+          shipping: 0,
+          tax: 0,
+          total: 1198
+        }
+      };
+    }
+
+    const { sendInvoiceEmail } = require('../utils/email');
+    const result = await sendInvoiceEmail(order, targetEmail);
+    res.json({
+      success: true,
+      message: `Sample GST Tax Invoice PDF sent to ${targetEmail} successfully!`,
+      data: result
+    });
+  } catch (error) {
+    console.error('Email sample invoice error:', error);
+    res.status(500).json({ success: false, error: { code: 'EMAIL_ERROR', message: error.message || 'Failed to email sample invoice' } });
+  }
+});
+
+// @route   PATCH /api/v1/admin/orders/:id/shipping-waiver
+// @desc    Toggle admin delivery charge waiver on a specific order
+router.patch('/orders/:id/shipping-waiver', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
+    }
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
+    }
+
+    const waive = req.body.waive !== undefined ? Boolean(req.body.waive) : !order.pricing?.shippingWaived;
+
+    if (waive) {
+      if (!order.pricing.shippingWaived) {
+        order.pricing.originalShipping = order.pricing.shipping;
+      }
+      order.pricing.shipping = 0;
+      order.pricing.shippingWaived = true;
+    } else {
+      const restored = typeof order.pricing.originalShipping === 'number' ? order.pricing.originalShipping : 50;
+      order.pricing.shipping = restored;
+      order.pricing.shippingWaived = false;
+    }
+
+    const subtotal = order.pricing.subtotal || 0;
+    const discount = order.pricing.discount || 0;
+    const tax = order.pricing.tax || 0;
+    order.pricing.total = Math.max(0, subtotal - discount + tax + order.pricing.shipping);
+
+    order.timeline.push({
+      status: order.status,
+      message: waive
+        ? `Delivery charge waived by admin (Invoice delivery charge: Free)`
+        : `Delivery charge of Rs. ${order.pricing.shipping} restored by admin`,
+      timestamp: new Date()
+    });
+
+    await order.save();
+
+    return res.json({
+      success: true,
+      message: waive ? 'Delivery charge waived successfully' : 'Delivery charge restored successfully',
+      data: {
+        orderId: order.orderId,
+        pricing: order.pricing
+      }
+    });
+  } catch (error) {
+    console.error('Shipping waiver error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update delivery charge waiver' } });
   }
 });
 
@@ -2389,33 +2577,13 @@ router.delete('/coupons/:id', async (req, res) => {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Coupon not found' } });
     }
 
-    // Check if coupon has ever been used in redemptions or past orders
-    const redemptionsCount = (coupon.redemptions || []).length;
-    const usageCount = coupon.usedCount || 0;
-    const ordersWithCoupon = await Order.countDocuments({
-      $or: [{ 'coupon.code': coupon.code }, { 'appliedCoupons.code': coupon.code }]
-    });
-
-    const totalUsage = Math.max(redemptionsCount, usageCount, ordersWithCoupon);
-
-    if (totalUsage > 0) {
-      // Soft delete: deactivate to preserve order records
-      coupon.isActive = false;
-      await coupon.save();
-      return res.json({
-        success: true,
-        deactivated: true,
-        message: `This coupon was used on ${totalUsage} past order(s) and has been deactivated instead of deleted, to preserve order records.`,
-        data: { id: coupon._id, isActive: false }
-      });
-    }
-
-    // Safe hard delete: coupon has 0 redemptions
+    // Permanently remove coupon from database
     await Coupon.findByIdAndDelete(coupon._id);
     return res.json({
       success: true,
       deleted: true,
-      message: `Coupon "${coupon.code}" permanently deleted successfully.`
+      message: `Coupon "${coupon.code}" permanently deleted successfully.`,
+      data: { id: coupon._id, deleted: true }
     });
   } catch (error) {
     console.error('Admin delete coupon error:', error);

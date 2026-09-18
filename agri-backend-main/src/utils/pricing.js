@@ -10,6 +10,21 @@ const { unitWeightKg } = require('./parcel');
 const FREE_SHIPPING_THRESHOLD = parseInt(process.env.FREE_SHIPPING_THRESHOLD) || 500;
 const DEFAULT_SHIPPING_COST = parseInt(process.env.DEFAULT_SHIPPING_COST) || 50;
 
+const getSettingsConfig = async () => {
+  try {
+    const setting = await Setting.findOne({ key: 'global_config' }).lean();
+    return {
+      freeShippingThreshold: typeof setting?.freeShippingThreshold === 'number' ? setting.freeShippingThreshold : (parseInt(process.env.FREE_SHIPPING_THRESHOLD) || 500),
+      standardDeliveryCharge: typeof setting?.standardDeliveryCharge === 'number' ? setting.standardDeliveryCharge : (parseInt(process.env.DEFAULT_SHIPPING_COST) || 50)
+    };
+  } catch (e) {
+    return {
+      freeShippingThreshold: parseInt(process.env.FREE_SHIPPING_THRESHOLD) || 500,
+      standardDeliveryCharge: parseInt(process.env.DEFAULT_SHIPPING_COST) || 50
+    };
+  }
+};
+
 const findProduct = async (productId) => {
   if (mongoose.Types.ObjectId.isValid(productId)) {
     const byId = await Product.findById(productId);
@@ -30,7 +45,8 @@ const findProduct = async (productId) => {
  */
 const computeCharges = async (subtotal, { toPincode, weight, declaredValue, serviceType, rate } = {}) => {
   if (subtotal <= 0) return 0;
-  if (subtotal >= FREE_SHIPPING_THRESHOLD) return 0; // free-shipping promo
+  const config = await getSettingsConfig();
+  if (subtotal >= config.freeShippingThreshold) return 0; // free-shipping promo
 
   if (rate !== null && rate !== undefined) return rate;
 
@@ -38,7 +54,7 @@ const computeCharges = async (subtotal, { toPincode, weight, declaredValue, serv
     const quoted = await shipping.getShippingCharge({ toPincode, weight, declaredValue: declaredValue ?? subtotal, serviceType });
     if (quoted !== null && quoted !== undefined) return quoted;
   }
-  return DEFAULT_SHIPPING_COST;
+  return config.standardDeliveryCharge;
 };
 
 /**
@@ -178,6 +194,7 @@ module.exports = {
   buildSummary,
   computeCharges,
   findProduct,
+  getSettingsConfig,
   FREE_SHIPPING_THRESHOLD,
   DEFAULT_SHIPPING_COST
 };

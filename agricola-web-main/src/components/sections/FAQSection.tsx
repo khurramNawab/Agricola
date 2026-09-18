@@ -3,7 +3,7 @@ import React, { useState } from "react";
 const faqs = [
   {
     q: "How do you independently verify organic claims?",
-    a: "AgriCola works exclusively with certified organic farms and agrarian cooperatives. Furthermore, every batch brought to our certified fulfillment facilities undergoes rigorous laboratory testing for purity, pesticide residues, and heavy metals before packaging.",
+    a: "AgriCola works directly with trusted agrarian cooperatives and heritage grower communities. Furthermore, every batch brought to our ISO & HACCP fulfillment facilities undergoes independent NABL laboratory testing for purity, pesticide residues, and heavy metals before packaging.",
   },
   {
     q: "Where are your fulfillment warehouses located?",

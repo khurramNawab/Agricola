@@ -64,7 +64,7 @@ const DEFAULT_SLIDES: HeroSlide[] = [
     image: "/assets/makhana2.png",
     title: "Mithila Heritage Wetland Organic Pops",
     description:
-      "Pure, single-origin popped lotus seeds harvested directly from indigenous Mallah grower cooperatives. Zero synthetic polish, 100% farm-traceable harvest.",
+      "Pure, single-origin popped lotus seeds harvested directly from indigenous Mallah grower cooperatives. Zero synthetic polish, 100% pure farm-direct harvest.",
     ctaText: "Discover Heritage Makhana",
     ctaLink: "/products?category=makhana",
     order: 2,
@@ -341,7 +341,7 @@ const Hero: React.FC = () => {
                     workspace_premium
                   </span>
                   <span className="text-xs font-bold text-[#1b1c1a]">
-                    100% Certified Organic
+                    100% Pure &amp; Natural
                   </span>
                 </div>
                 <div className="flex items-center gap-2 bg-white/70 backdrop-blur-sm px-3 py-2 rounded-xl">
@@ -383,7 +383,7 @@ const Hero: React.FC = () => {
           </div>
 
           {/* ── Right Column: Video (If Festival Video Active) OR Photo (When Disabled / Normal) ── */}
-          <div className="lg:col-span-5 relative flex flex-col gap-4">
+          <div className="lg:col-span-5 relative flex flex-col gap-4 w-full max-w-xl mx-auto">
             {campaignData.isCustomCampaign && hasVideo ? (
               /* Video Spotlight (When Festival Campaign & Video is active) */
               <div className="relative bg-white/95 backdrop-blur-xl rounded-3xl p-5 shadow-[0_16px_36px_-10px_rgba(30,58,31,0.12)] border border-gray-100/90 transition-all duration-300">
@@ -457,7 +457,7 @@ const Hero: React.FC = () => {
                     onError={(e) => {
                       (e.currentTarget as HTMLImageElement).src = "/assets/makhana1.png";
                     }}
-                    className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                    className="w-full h-full object-cover object-center transition-transform duration-500 hover:scale-105"
                   />
 
                   {/* Interactive Carousel Navigation Arrows (when multiple slides exist) */}

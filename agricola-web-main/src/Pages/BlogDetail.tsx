@@ -406,7 +406,7 @@ export default function BlogDetail() {
             </span>
             <h3 className="text-xl sm:text-2xl font-black">Experience The Pure Farm Harvest</h3>
             <p className="text-xs sm:text-sm text-gray-300 max-w-md">
-              From stone-ground spices to wood-churned cold pressed oils, explore products certified for pure nutrition.
+              From stone-ground spices to wood-churned cold pressed oils, explore products crafted for pure nutrition.
             </p>
           </div>
           <Link
