@@ -558,7 +558,7 @@ export default function ProductDetail() {
               </div>
               <div className="flex items-center gap-1.5">
                 <Warehouse size={15} className="text-[#486800]" />
-                <span>Facility: <strong className="text-[#1e3a1f]">ISO 22000 &amp; HACCP Facility</strong></span>
+                <span>Facility: <strong className="text-[#1e3a1f]">FSSAI &amp; Certified Facility</strong></span>
               </div>
             </div>
 
@@ -1021,7 +1021,7 @@ export default function ProductDetail() {
                   <div className="flex items-center justify-between pb-3 mb-4 border-b border-gray-200">
                     <div>
                       <h3 className="text-sm font-black text-[#1e3a1f]">Nutrition Table (Per 100g Serving)</h3>
-                      <span className="text-[11px] text-gray-500">NABL Accredited Laboratory Assay &amp; Analysis</span>
+                      <span className="text-[11px] text-gray-500">Certified Laboratory Assay &amp; Analysis</span>
                     </div>
                     <span className="bg-[#c9ecc4] text-[#1e3a1f] px-3 py-1 rounded-full text-xs font-black">
                       347 kcal
@@ -1069,7 +1069,7 @@ export default function ProductDetail() {
                   <div className="bg-[#f5f3f0] p-6 rounded-3xl shadow-2xs flex flex-col gap-3">
                     <div className="flex items-center gap-2 text-[#486800] font-black text-sm">
                       <ShieldCheck size={18} />
-                      <span>NABL Lab Quality Test Report</span>
+                      <span>Certified Lab Quality Test Report</span>
                     </div>
                     <p className="text-xs text-[#434936] leading-relaxed">
                       Every batch is third-party screened for 210 pesticide residues, heavy metals (lead, cadmium, mercury), and moisture retention.
@@ -1099,7 +1099,7 @@ export default function ProductDetail() {
                       </div>
                       <div className="bg-white p-2.5 rounded-xl text-center border border-gray-200">
                         <span className="text-xs text-[#486800] font-black block">Pass</span>
-                        <span className="text-[10px] text-gray-500 font-semibold">Non-GMO Verified</span>
+                        <span className="text-[10px] text-gray-500 font-semibold">100% Pure &amp; Natural</span>
                       </div>
                     </div>
                   </div>

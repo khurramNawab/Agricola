@@ -969,7 +969,7 @@ export default function Checkout() {
                 </div>
                 <div>
                   <span className="font-bold text-[#1e3a1f] block text-xs">Purity Guarantee</span>
-                  <span className="text-[11px] text-gray-400">ISO 22000 &amp; HACCP Quality Assured</span>
+                  <span className="text-[11px] text-gray-400">FSSAI Compliant &amp; Quality Certified</span>
                 </div>
               </div>
               <Link
