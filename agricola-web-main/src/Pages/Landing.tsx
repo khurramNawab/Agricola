@@ -9,7 +9,7 @@ import PromoBannerSection from "../components/sections/PromoBannerSection";
 
 export const Landing = () => {
   return (
-    <div id="webcrumbs" className="bg-[#fbf9f6] min-h-screen flex flex-col">
+    <div id="webcrumbs" className="bg-[#fbf9f6] min-h-screen flex flex-col w-full max-w-full overflow-x-clip">
       {/* Top Harvest Announcement Pill */}
       <div className="w-full flex items-center justify-center pt-3 pb-1 px-3 sm:px-4">
         <div className="inline-flex items-center justify-center text-center gap-1.5 sm:gap-2 px-3.5 py-1.5 rounded-full bg-[#c9ecc4]/80 backdrop-blur-md text-[#2f4f2f] shadow-2xs text-[11px] sm:text-xs font-semibold border border-[#84b817]/25 max-w-full">
@@ -26,7 +26,7 @@ export const Landing = () => {
         </div>
       </div>
 
-      <main className="flex-1 w-full max-w-[1540px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+      <main className="flex-1 w-full max-w-[1540px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 min-w-0 overflow-x-clip">
         <Hero />
 
         {/* Live Farm Origin & Freshness Metric Bar */}

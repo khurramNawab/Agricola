@@ -84,7 +84,7 @@ const Header: React.FC = () => {
     : "Select Delivery Pincode";
 
   return (
-    <header className="sticky top-0 left-0 w-full z-50 shadow-[0_2px_14px_rgba(0,0,0,0.06)] bg-white/95 backdrop-blur-xl transition-all">
+    <header className="sticky top-0 left-0 w-full max-w-full z-50 shadow-[0_2px_14px_rgba(0,0,0,0.06)] bg-white/95 backdrop-blur-xl transition-all overflow-x-clip">
       {/* Tier 1: Top Announcement Ribbon */}
       <div className="bg-[#1e3a1f] text-[#faf8f5] px-3 sm:px-4 lg:px-8 py-2 text-xs font-medium border-b border-[#84b817]/20">
         <div className="max-w-[1540px] 2xl:max-w-[1600px] w-full mx-auto flex items-center justify-between gap-2">
@@ -110,11 +110,11 @@ const Header: React.FC = () => {
 
       {/* Tier 2: Main Brand & Search Tier (Spacious & Premium) */}
       <div className="max-w-[1540px] 2xl:max-w-[1600px] w-full mx-auto px-4 lg:px-8 py-3.5 sm:py-4 flex flex-col justify-center gap-2">
-        <div className="flex items-center justify-between gap-4 lg:gap-8">
+        <div className="flex items-center justify-between gap-3 lg:gap-8 w-full min-w-0">
           {/* Brand Logo */}
           <div className="flex items-center gap-3 shrink-0">
             <button
-              className="md:hidden text-gray-700 hover:text-[#486800] p-1 cursor-pointer"
+              className="lg:hidden text-gray-700 hover:text-[#486800] p-1 cursor-pointer"
               onClick={() => setMobileNavOpen(!mobileNavOpen)}
               aria-label={mobileNavOpen ? "Close menu" : "Open menu"}
             >
@@ -126,16 +126,16 @@ const Header: React.FC = () => {
           </div>
 
           {/* Center Search Bar */}
-          <div className="hidden md:flex flex-1 max-w-2xl mx-2 lg:mx-6">
+          <div className="hidden lg:flex flex-1 max-w-2xl min-w-0 mx-2 lg:mx-4 xl:mx-6">
             <div
               onClick={() => setSearchOpen(true)}
-              className="flex w-full items-center bg-[#f5f3f0] hover:bg-[#eceae5] rounded-full px-5 py-2.5 cursor-pointer shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-gray-200/60 hover:border-[#84b817]/50 transition-all group"
+              className="flex w-full min-w-0 items-center bg-[#f5f3f0] hover:bg-[#eceae5] rounded-full px-4 xl:px-5 py-2.5 cursor-pointer shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-gray-200/60 hover:border-[#84b817]/50 transition-all group"
             >
-              <div className="flex items-center gap-1 border-r border-gray-300/80 pr-3 mr-3 text-xs sm:text-sm font-bold text-[#434936]">
+              <div className="flex items-center gap-1 border-r border-gray-300/80 pr-2.5 mr-2.5 text-xs font-bold text-[#434936] shrink-0">
                 <span>All Organic</span>
                 <span className="material-symbols-outlined text-sm text-gray-500">arrow_drop_down</span>
               </div>
-              <span className="flex-1 text-xs sm:text-sm text-gray-400 group-hover:text-gray-600 transition-colors truncate">
+              <span className="flex-1 min-w-0 text-xs sm:text-sm text-gray-400 group-hover:text-gray-600 transition-colors truncate">
                 Search Mithila GI makhana, whole leaf green tea, herbal tea...
               </span>
               <span className="material-symbols-outlined text-[#486800] text-xl font-bold ml-2">search</span>
@@ -143,7 +143,7 @@ const Header: React.FC = () => {
           </div>
 
           {/* Right Actions: Deliver-to, Wishlist, Cart, Account */}
-          <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 shrink-0">
             {/* Interactive Location Pill (Navbar) */}
             <button
               type="button"
@@ -162,7 +162,7 @@ const Header: React.FC = () => {
 
             {/* Mobile Search Icon */}
             <button
-              className="md:hidden p-2 hover:text-[#486800] transition-colors cursor-pointer"
+              className="lg:hidden p-2 hover:text-[#486800] transition-colors cursor-pointer"
               aria-label="Search"
               onClick={() => setSearchOpen(true)}
             >
@@ -268,7 +268,7 @@ const Header: React.FC = () => {
         </div>
 
         {/* Tier 3: Subcategory Navigation Bar (Enlarged, Spacious, Blogs Added) */}
-        <nav className="hidden md:flex items-center justify-start lg:justify-center gap-7 lg:gap-9 overflow-x-auto py-3 px-4 border-t border-gray-100 text-sm font-bold text-[#434936]">
+        <nav className="hidden lg:flex items-center justify-start xl:justify-center gap-5 xl:gap-8 overflow-x-auto py-2.5 px-4 border-t border-gray-100 text-xs xl:text-sm font-bold text-[#434936]">
           <NavLink
             to="/"
             end
@@ -363,7 +363,7 @@ const Header: React.FC = () => {
 
       {/* Mobile Drawer Navigation */}
       {mobileNavOpen && (
-        <nav className="md:hidden border-t border-gray-100 bg-white px-4 py-4 flex flex-col space-y-1.5 text-sm font-medium animate-fadeIn">
+        <nav className="lg:hidden border-t border-gray-100 bg-white px-4 py-4 flex flex-col space-y-1.5 text-sm font-medium animate-fadeIn">
           {navItems.map((item) => (
             <NavLink
               key={item.to}

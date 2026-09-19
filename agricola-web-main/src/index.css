@@ -17,6 +17,7 @@
   /* Hide default browser side scrollbars completely as requested */
   html, body {
     overflow-x: hidden;
+    max-width: 100vw;
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
