@@ -223,7 +223,7 @@ const Hero: React.FC = () => {
   return (
     <>
       {/* ── Hero Section ── */}
-      <section className="relative w-full overflow-hidden rounded-3xl bg-gradient-to-b from-[#f5f3f0] via-[#fbf9f6] to-[#fbf9f6] px-6 lg:px-12 py-10 lg:py-14 my-4 shadow-[0_12px_30px_-8px_rgba(30,58,31,0.06)]">
+      <section className="relative w-full overflow-hidden rounded-3xl bg-gradient-to-b from-[#f5f3f0] via-[#fbf9f6] to-[#fbf9f6] px-4 sm:px-6 lg:px-12 py-7 sm:py-10 lg:py-14 my-3 sm:my-4 shadow-[0_12px_30px_-8px_rgba(30,58,31,0.06)]">
         {/* Ambient organic green blur spots */}
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-[#486800]/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute top-1/2 -right-20 w-80 h-80 bg-[#84b817]/15 rounded-full blur-3xl pointer-events-none" />
@@ -280,24 +280,24 @@ const Hero: React.FC = () => {
                 )}
               </div>
 
-              <h1 className="text-4xl sm:text-[50px] font-extrabold text-[#1b1c1a] tracking-tight leading-[1.08] max-w-2xl">
+              <h1 className="text-3xl sm:text-4xl lg:text-[50px] font-extrabold text-[#1b1c1a] tracking-tight leading-[1.12] max-w-2xl">
                 Pure, Farm–Harvested Goodness. Delivered From{" "}
                 <span className="text-[#486800] italic">Soil to Soul</span>.
               </h1>
 
               <p
                 key={heroIndex}
-                className="text-base lg:text-lg text-[#434936] max-w-xl leading-relaxed min-h-[76px] transition-all duration-300 animate-fadeIn"
+                className="text-sm sm:text-base lg:text-lg text-[#434936] max-w-xl leading-relaxed min-h-[50px] sm:min-h-[76px] transition-all duration-300 animate-fadeIn"
               >
                 {active.description ||
                   "Hand-picked organic seeds, sun-dried Mithila jumbo makhana, and single-origin stone-ground spices directly from verified partner farms. No middlemen, zero synthetic polish."}
               </p>
 
               {/* CTAs */}
-              <div className="flex flex-wrap items-center gap-4 w-full pt-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full pt-2">
                 <button
                   onClick={() => handleCtaClick(active.ctaLink)}
-                  className="bg-[#84b817] text-white text-sm sm:text-base px-8 py-4 rounded-full font-bold shadow-[0_8px_20px_-4px_rgba(132,184,23,0.35)] hover:bg-[#486800] transition-all duration-200 flex items-center gap-2 group active:scale-95 cursor-pointer"
+                  className="w-full sm:w-auto bg-[#84b817] text-white text-sm sm:text-base px-7 py-3.5 sm:px-8 sm:py-4 rounded-full font-bold shadow-[0_8px_20px_-4px_rgba(132,184,23,0.35)] hover:bg-[#486800] transition-all duration-200 flex items-center justify-center gap-2 group active:scale-95 cursor-pointer"
                 >
                   <span>{active.ctaText || "Explore Fresh Harvest"}</span>
                   <span className="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">
@@ -307,7 +307,7 @@ const Hero: React.FC = () => {
 
                 <button
                   onClick={() => navigate("/track")}
-                  className="relative group overflow-hidden bg-gradient-to-r from-[#142314] via-[#1e3a1f] to-[#142314] hover:from-[#1e3a1f] hover:to-[#2d562f] text-white text-sm sm:text-base px-7 py-4 rounded-full font-bold shadow-[0_8px_25px_-6px_rgba(30,58,31,0.45)] hover:shadow-[0_12px_32px_-4px_rgba(132,184,23,0.35)] transition-all duration-300 flex items-center gap-3 border border-[#84b817]/40 hover:border-[#84b817] active:scale-95 cursor-pointer"
+                  className="w-full sm:w-auto relative group overflow-hidden bg-gradient-to-r from-[#142314] via-[#1e3a1f] to-[#142314] hover:from-[#1e3a1f] hover:to-[#2d562f] text-white text-sm sm:text-base px-6 py-3.5 sm:px-7 sm:py-4 rounded-full font-bold shadow-[0_8px_25px_-6px_rgba(30,58,31,0.45)] hover:shadow-[0_12px_32px_-4px_rgba(132,184,23,0.35)] transition-all duration-300 flex items-center justify-center gap-2.5 sm:gap-3 border border-[#84b817]/40 hover:border-[#84b817] active:scale-95 cursor-pointer"
                 >
                   <span className="relative flex h-3 w-3 shrink-0">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#84b817] opacity-80"></span>
@@ -335,7 +335,7 @@ const Hero: React.FC = () => {
               </div>
 
               {/* Trust Badges Bar */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full pt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 w-full pt-3">
                 <div className="flex items-center gap-2 bg-white/70 backdrop-blur-sm px-3 py-2 rounded-xl">
                   <span className="material-symbols-outlined text-[#486800] text-lg">
                     workspace_premium

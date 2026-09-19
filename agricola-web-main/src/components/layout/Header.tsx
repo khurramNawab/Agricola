@@ -86,21 +86,23 @@ const Header: React.FC = () => {
   return (
     <header className="sticky top-0 left-0 w-full z-50 shadow-[0_2px_14px_rgba(0,0,0,0.06)] bg-white/95 backdrop-blur-xl transition-all">
       {/* Tier 1: Top Announcement Ribbon */}
-      <div className="bg-[#1e3a1f] text-[#faf8f5] px-4 lg:px-8 py-2 text-xs font-medium border-b border-[#84b817]/20">
-        <div className="max-w-[1540px] 2xl:max-w-[1600px] w-full mx-auto flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
-            <span className="material-symbols-outlined text-sm text-[#84b817]">eco</span>
-            <p className="text-[11.5px] sm:text-xs tracking-wide font-medium">
-              100% Farm-Direct Pure Living • Free shipping across India on orders above ₹{freeThreshold.toLocaleString("en-IN")} • Direct farmer provenance
+      <div className="bg-[#1e3a1f] text-[#faf8f5] px-3 sm:px-4 lg:px-8 py-2 text-xs font-medium border-b border-[#84b817]/20">
+        <div className="max-w-[1540px] 2xl:max-w-[1600px] w-full mx-auto flex items-center justify-between gap-2">
+          {/* Left: Auto-Responsive Free Shipping Banner */}
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            <span className="material-symbols-outlined text-xs sm:text-sm text-[#84b817] shrink-0">eco</span>
+            <p className="text-[11px] sm:text-xs tracking-wide font-medium truncate">
+              <span className="hidden sm:inline">100% Farm-Direct Pure Living • </span>Free shipping above ₹{freeThreshold.toLocaleString("en-IN")}
+              <span className="hidden md:inline"> • Direct farmer provenance</span>
             </p>
           </div>
-          {/* Top Right: Track Your Order CTA */}
+          {/* Right: Track Your Order CTA */}
           <Link
             to="/track"
-            className="flex items-center gap-1.5 text-[#c9ecc4] hover:text-white transition-colors text-[11.5px] sm:text-xs font-bold cursor-pointer"
+            className="flex items-center gap-1 text-[#c9ecc4] hover:text-white transition-colors text-[11px] sm:text-xs font-bold cursor-pointer shrink-0 ml-1.5"
           >
-            <span className="material-symbols-outlined text-sm text-[#84b817]">local_shipping</span>
-            <span>Track Your Order</span>
+            <span className="material-symbols-outlined text-xs sm:text-sm text-[#84b817]">local_shipping</span>
+            <span className="whitespace-nowrap">Track Order</span>
             <span className="material-symbols-outlined text-xs">arrow_forward</span>
           </Link>
         </div>
@@ -186,10 +188,10 @@ const Header: React.FC = () => {
             <button
               aria-label="Cart"
               onClick={() => navigate("/cart")}
-              className="flex items-center gap-2.5 bg-[#c9ecc4] hover:bg-[#84b817] text-[#1e3a1f] hover:text-white px-4 sm:px-5 py-2.5 rounded-full font-extrabold text-xs sm:text-sm shadow-xs hover:shadow transition-all cursor-pointer"
+              className="flex items-center gap-1.5 sm:gap-2.5 bg-[#c9ecc4] hover:bg-[#84b817] text-[#1e3a1f] hover:text-white px-3 sm:px-5 py-2 sm:py-2.5 rounded-full font-extrabold text-xs sm:text-sm shadow-xs hover:shadow transition-all cursor-pointer shrink-0"
             >
-              <span className="material-symbols-outlined text-lg">local_mall</span>
-              <span>Cart ({cartCount})</span>
+              <span className="material-symbols-outlined text-base sm:text-lg">local_mall</span>
+              <span><span className="hidden sm:inline">Cart </span>({cartCount})</span>
             </button>
 
             {/* Account Profile / Dropdown */}
