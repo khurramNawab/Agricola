@@ -49,11 +49,11 @@ const legalLinks = [
 ];
 
 const certifications = [
-  "ISO 22000 Standards",
-  "HACCP Food Safety",
-  "GMP Quality Assured",
-  "100% Non-GMO Verified",
-  "NABL Lab Tested Pure",
+  "FSSAI Food Safety Certified",
+  "Certified Quality Assured",
+  "Certified Purity Tested",
+  "100% Pure & Natural",
+  "Laboratory Tested Pure",
 ];
 
 const Footer: React.FC = () => {

@@ -40,13 +40,13 @@ const features = [
   {
     icon: Leaf,
     title: "Lab Tested Purity",
-    desc: "Every pack verified with NABL laboratory testing reports and strict quality protocols.",
+    desc: "Every pack verified with certified laboratory testing reports and strict quality protocols.",
     accent: "text-lime-400 bg-lime-400/10 border-lime-400/20",
   },
   {
     icon: ShieldCheck,
     title: "Direct Farm Express",
-    desc: "Dispatched from temperature-controlled ISO facilities.",
+    desc: "Dispatched from temperature-controlled certified facilities.",
     accent: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
   },
 ];

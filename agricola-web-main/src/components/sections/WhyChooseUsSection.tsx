@@ -26,8 +26,8 @@ const features = [
   {
     icon: "biotech",
     iconBg: "bg-[#c9ecc4]/70 text-[#486647]",
-    title: "NABL Lab Tested",
-    text: "Screened by independent NABL-accredited testing laboratories for lead, cadmium, pesticide residues, aflatoxins, and microbial safety prior to packing.",
+    title: "Certified Lab Tested",
+    text: "Screened by independent certified testing laboratories for lead, cadmium, pesticide residues, aflatoxins, and microbial safety prior to packing.",
     link: "View Lab Reports",
   },
 ];
