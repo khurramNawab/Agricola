@@ -2049,9 +2049,17 @@ router.put('/orders/:id/assign-warehouse', async (req, res) => {
           order.status = 'processing';
         }
         await order.save();
-      }
     } catch (shipErr) {
       console.error(`Shipment booking after warehouse assignment failed for ${order.orderId}:`, shipErr.message);
+      try {
+        order.timeline.push({
+          status: 'shipment_failed',
+          message: `Shipment booking failed: ${shipErr.message}`.slice(0, 500),
+          timestamp: new Date(),
+          updatedBy: req.user._id
+        });
+        await order.save();
+      } catch (_) {}
     }
 
     await order.populate('user', 'name email userId phone');

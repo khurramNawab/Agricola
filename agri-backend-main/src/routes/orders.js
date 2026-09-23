@@ -283,6 +283,8 @@ router.post('/', authenticate, async (req, res) => {
         await CouponUtils.recordRedemption(order.coupon.code, req.user._id, order.orderId, order.pricing?.discount);
       }
       await mailer.sendOrderConfirmation(order);
+      // Auto-book shipment with provider for COD if enabled
+      await shipping.autoCreateShipment(order);
     }
 
     return res.status(201).json({
