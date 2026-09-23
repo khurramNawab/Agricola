@@ -170,6 +170,47 @@ module.exports = {
   warehousePincode: () => provider().warehousePincode(),
 
   /**
+   * Auto-create a shipment for a confirmed or paid order.
+   * Best-effort: catches errors, updates order timeline, and never crashes order flow.
+   */
+  autoCreateShipment: async (order) => {
+    try {
+      if (process.env.AUTO_CREATE_SHIPMENT !== 'true') return null;
+      if (process.env.ENABLE_MULTI_WAREHOUSE === 'true' && order.awaitingWarehouseAssignment) return null;
+      const client = clientFor(providerOfOrder(order));
+      if (!client.isConfigured()) return null;
+      if (order.shipping?.trackingNumber) return null; // already shipped
+
+      if (typeof order.populate === 'function') {
+        await order.populate('items.product', 'name productId weight dimensions');
+      }
+      const shipment = await client.createShipment(order, { provider: providerOfOrder(order) });
+      module.exports.applyShipment(order, shipment);
+      order.status = 'processing';
+      order.timeline.push({
+        status: 'shipment_created',
+        message: `Shipment auto-created with ${shipment.carrier}. AWB: ${shipment.awbNumber}`,
+        timestamp: new Date()
+      });
+      await order.save();
+      return shipment;
+    } catch (error) {
+      console.error(`Auto shipment creation failed for order ${order.orderId}:`, error.message);
+      try {
+        order.timeline.push({
+          status: 'shipment_failed',
+          message: `Auto shipment creation failed: ${error.message}`.slice(0, 500),
+          timestamp: new Date()
+        });
+        await order.save();
+      } catch (saveError) {
+        console.error(`Could not record shipment failure for order ${order.orderId}:`, saveError.message);
+      }
+      return null;
+    }
+  },
+
+  /**
    * Persist a normalized shipment onto an order's `shipping` subdocument. Fields are
    * set individually — spreading the Mongoose subdocument would expand its unset
    * nested paths to undefined and fail re-casting. Does not save, and leaves

@@ -18,42 +18,7 @@ const { CouponUtils } = require('../utils/helpers');
 // Best-effort shipment booking after a payment succeeds. Never throws: a fulfilment
 // failure must not break payment confirmation (it can be retried by an admin via
 // POST /shipping/create-shipment).
-const autoCreateShipment = async (order) => {
-  try {
-    if (process.env.AUTO_CREATE_SHIPMENT !== 'true') return;
-    if (process.env.ENABLE_MULTI_WAREHOUSE === 'true' && order.awaitingWarehouseAssignment) return;
-    if (!shipping.isConfigured()) return;
-    if (order.shipping?.trackingNumber) return; // already shipped
-
-    await order.populate('items.product', 'name productId weight dimensions');
-    // Book with the carrier that covers this pincode (stamped at order creation).
-    const shipment = await shipping.createShipment(order, { provider: shipping.providerOfOrder(order) });
-
-    shipping.applyShipment(order, shipment);
-    order.status = 'processing';
-    order.timeline.push({
-      status: 'shipment_created',
-      message: `Shipment auto-created with ${shipment.carrier}. AWB: ${shipment.awbNumber}`,
-      timestamp: new Date()
-    });
-    await order.save();
-  } catch (error) {
-    console.error(`Auto shipment creation failed for order ${order.orderId}:`, error.message);
-    // Record the failure on the order so an admin can see it needs manual booking,
-    // instead of it silently sitting at 'confirmed'. order.status is left unchanged
-    // (timeline.status is free-form and doesn't touch the status enum). Best-effort.
-    try {
-      order.timeline.push({
-        status: 'shipment_failed',
-        message: `Auto shipment creation failed: ${error.message}`.slice(0, 500),
-        timestamp: new Date()
-      });
-      await order.save();
-    } catch (saveError) {
-      console.error(`Could not record shipment failure for order ${order.orderId}:`, saveError.message);
-    }
-  }
-};
+const autoCreateShipment = async (order) => shipping.autoCreateShipment(order);
 
 /**
  * Idempotently fulfil an order after a successful payment. Atomically claims the
