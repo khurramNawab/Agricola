@@ -2049,6 +2049,7 @@ router.put('/orders/:id/assign-warehouse', async (req, res) => {
           order.status = 'processing';
         }
         await order.save();
+      }
     } catch (shipErr) {
       console.error(`Shipment booking after warehouse assignment failed for ${order.orderId}:`, shipErr.message);
       try {
