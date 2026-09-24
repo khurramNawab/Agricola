@@ -182,6 +182,18 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
 
   const [cloning, setCloning] = useState(false);
   const [cloneSuccess, setCloneSuccess] = useState("");
+  const [cloneModalOpen, setCloneModalOpen] = useState(false);
+  const [cloneReason, setCloneReason] = useState("Delivery Failed / RTO");
+  const [cloneCustomReason, setCloneCustomReason] = useState("");
+  const [cloneEditAddress, setCloneEditAddress] = useState(false);
+  const [cloneAddress, setCloneAddress] = useState({
+    name: "",
+    phone: "",
+    street: "",
+    city: "",
+    state: "",
+    pincode: "",
+  });
 
   const [waiverBusy, setWaiverBusy] = useState(false);
 
@@ -200,16 +212,35 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
     }
   };
 
-  const handleClone = async () => {
-    if (!window.confirm(`Are you sure you want to clone Order #${order.orderId}? This will create a fresh pending order with the same customer and items.`)) {
-      return;
-    }
+  const openCloneModal = () => {
+    setCloneAddress({
+      name: order.shippingAddress?.name || order.customer?.name || "",
+      phone: order.shippingAddress?.phone || order.customer?.phone || "",
+      street: order.shippingAddress?.street || "",
+      city: order.shippingAddress?.city || "",
+      state: order.shippingAddress?.state || "",
+      pincode: order.shippingAddress?.pincode || "",
+    });
+    setCloneEditAddress(false);
+    setError("");
+    setCloneSuccess("");
+    setCloneModalOpen(true);
+  };
+
+  const handleExecuteClone = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setError("");
     setCloneSuccess("");
     setCloning(true);
     try {
-      const cloned = await cloneAdminOrder(order.id);
-      setCloneSuccess(`Order cloned successfully as #${cloned.orderId}!`);
+      const finalReason = cloneReason === "Other" ? (cloneCustomReason.trim() || "Replacement Order") : cloneReason;
+      const cloned = await cloneAdminOrder(order.id, {
+        reason: finalReason,
+        shippingAddress: cloneEditAddress ? cloneAddress : undefined,
+      });
+      const awbText = (cloned as any).shipping?.trackingNumber ? ` (AWB: ${(cloned as any).shipping.trackingNumber})` : "";
+      setCloneSuccess(`Replacement order #${cloned.orderId}${awbText} created & booked on Shiprocket!`);
+      setCloneModalOpen(false);
       onStatusUpdated(cloned);
     } catch (err) {
       console.error("Order clone error:", err);
@@ -298,12 +329,12 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
             <button
               type="button"
               disabled={cloning}
-              onClick={handleClone}
+              onClick={openCloneModal}
               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-emerald-50 text-[#1e3a1f] font-bold shadow-2xs transition-colors cursor-pointer disabled:opacity-50 border border-[#84b817]/40"
-              title="Duplicate this order into a new pending order"
+              title="Create replacement order with fresh AWB on Shiprocket"
             >
-              <span className="material-symbols-outlined text-sm text-[#486800]">content_copy</span>
-              <span>{cloning ? "Cloning…" : "Clone Order"}</span>
+              <span className="material-symbols-outlined text-sm text-[#486800]">sync</span>
+              <span>{cloning ? "Cloning…" : "Re-ship / Clone"}</span>
             </button>
           </div>
         </div>
@@ -679,6 +710,199 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
           </button>
         </div>
       </div>
+
+      {/* Clone / Replacement Order Dialog */}
+      {cloneModalOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-gray-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-xl">sync</span>
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-[#1e3a1f]">
+                    Re-ship Replacement Order
+                  </h3>
+                  <p className="text-xs text-[#434936]">
+                    Source Order #{order.orderId} • Generates fresh AWB &amp; Label
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCloneModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleExecuteClone} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[#1e3a1f] mb-1">
+                  Reason for Replacement Dispatch <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={cloneReason}
+                  onChange={(e) => setCloneReason(e.target.value)}
+                  className="w-full text-xs font-semibold text-[#1e3a1f] bg-[#fbf9f6] border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-hidden focus:ring-2 focus:ring-[#486800]/20 focus:border-[#486800]"
+                >
+                  <option value="Delivery Failed / RTO">Delivery Failed / RTO (Courier returned parcel)</option>
+                  <option value="Transit Damage / Leaked">Transit Damage / Leaked Bottle</option>
+                  <option value="Lost in Transit">Lost in Transit by Courier</option>
+                  <option value="Address Correction / Re-dispatch">Address / Phone Correction Re-dispatch</option>
+                  <option value="Customer Replacement Request">Customer Replacement Request</option>
+                  <option value="Other">Other reason...</option>
+                </select>
+
+                {cloneReason === "Other" && (
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter custom reason..."
+                    value={cloneCustomReason}
+                    onChange={(e) => setCloneCustomReason(e.target.value)}
+                    className="mt-2 w-full text-xs text-[#1e3a1f] bg-[#fbf9f6] border border-gray-200 rounded-xl px-3.5 py-2 focus:outline-hidden focus:ring-2 focus:ring-[#486800]/20"
+                  />
+                )}
+              </div>
+
+              {/* Payment Mode Notice */}
+              <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/60 text-[11px] text-amber-900 leading-relaxed">
+                {order.paymentStatus === "paid" ? (
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-sm text-emerald-700 shrink-0 mt-0.5">verified</span>
+                    <div>
+                      <span className="font-bold text-emerald-800">Prepaid Replacement (₹{order.pricing?.total ?? order.amount}):</span> Customer has already paid online. This replacement order is booked as <strong className="underline">Prepaid</strong> on Shiprocket so the courier will not collect cash again.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2">
+                    <span className="material-symbols-outlined text-sm text-amber-700 shrink-0 mt-0.5">payments</span>
+                    <div>
+                      <span className="font-bold text-amber-800">Cash on Delivery (₹{order.pricing?.total ?? order.amount}):</span> Replacement order will be booked as <strong className="underline">COD</strong> to collect payment upon delivery.
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Address / Phone Verification Option */}
+              <div className="pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setCloneEditAddress(!cloneEditAddress)}
+                  className="w-full flex items-center justify-between text-xs font-bold text-[#1e3a1f] hover:text-[#486800] py-1 cursor-pointer"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-[#486800]">local_shipping</span>
+                    <span>Recipient &amp; Delivery Address ({cloneEditAddress ? "Hide" : "Edit / Verify"})</span>
+                  </span>
+                  <span className="text-[11px] text-[#486800] underline">
+                    {cloneEditAddress ? "Close" : "Update Phone / Address"}
+                  </span>
+                </button>
+
+                {cloneEditAddress && (
+                  <div className="mt-3 space-y-3 p-3.5 bg-[#fbf9f6] rounded-2xl border border-gray-200 text-xs">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-600 mb-0.5">Recipient Name</label>
+                        <input
+                          type="text"
+                          value={cloneAddress.name}
+                          onChange={(e) => setCloneAddress({ ...cloneAddress, name: e.target.value })}
+                          className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-600 mb-0.5">Mobile Phone (10 digits)</label>
+                        <input
+                          type="tel"
+                          maxLength={10}
+                          value={cloneAddress.phone}
+                          onChange={(e) => setCloneAddress({ ...cloneAddress, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+                          className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-600 mb-0.5">Street Address</label>
+                      <textarea
+                        rows={2}
+                        value={cloneAddress.street}
+                        onChange={(e) => setCloneAddress({ ...cloneAddress, street: e.target.value })}
+                        className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs font-medium"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-600 mb-0.5">City</label>
+                        <input
+                          type="text"
+                          value={cloneAddress.city}
+                          onChange={(e) => setCloneAddress({ ...cloneAddress, city: e.target.value })}
+                          className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-600 mb-0.5">State</label>
+                        <input
+                          type="text"
+                          value={cloneAddress.state}
+                          onChange={(e) => setCloneAddress({ ...cloneAddress, state: e.target.value })}
+                          className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-600 mb-0.5">Pincode</label>
+                        <input
+                          type="text"
+                          maxLength={6}
+                          value={cloneAddress.pincode}
+                          onChange={(e) => setCloneAddress({ ...cloneAddress, pincode: e.target.value.replace(/\D/g, "").slice(0, 6) })}
+                          className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-medium"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  disabled={cloning}
+                  onClick={() => setCloneModalOpen(false)}
+                  className="px-4 py-2 rounded-full border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={cloning}
+                  className="px-5 py-2 rounded-full bg-[#486800] hover:bg-[#1e3a1f] text-xs font-bold text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {cloning ? (
+                    <>
+                      <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                      <span>Booking on Shiprocket…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-sm">local_shipping</span>
+                      <span>Dispatch Replacement (New AWB)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

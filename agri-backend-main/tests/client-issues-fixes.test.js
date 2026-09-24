@@ -149,6 +149,55 @@ describe('Client Issues 1-7 Verification Suite', () => {
       // Restore stock
       await Product.findByIdAndUpdate(testProduct._id, { stock: 48 });
     });
+
+    test('POST /api/v1/admin/orders/:id/clone supports reason, custom address, and prepaid retention with source link', async () => {
+      const prepaidOrder = await Order.create({
+        orderId: 'ORD_PREPAID_SOURCE',
+        user: customerUser._id,
+        items: [{ product: testProduct._id, name: testProduct.name, quantity: 1, price: 350, subtotal: 350 }],
+        pricing: { subtotal: 350, total: 350, shipping: 0, tax: 0, discount: 0 },
+        paymentMethod: 'razorpay',
+        paymentStatus: 'paid',
+        status: 'shipped',
+        shippingAddress: sampleOrder.shippingAddress
+      });
+
+      const initialStock = (await Product.findById(testProduct._id)).stock;
+
+      const res = await request(app)
+        .post(`/api/v1/admin/orders/${prepaidOrder._id}/clone`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          reason: 'Transit Damage Replacement',
+          shippingAddress: {
+            name: 'Updated Recipient',
+            phone: '9988776655',
+            street: 'New Dispatch Street 42',
+            city: 'Kaithal',
+            state: 'Haryana',
+            pincode: '136027'
+          }
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      const cloned = res.body.data;
+      expect(['paid', 'Paid', 'Success']).toContain(cloned.paymentStatus);
+      expect(cloned.shippingAddress.name).toBe('Updated Recipient');
+      expect(cloned.shippingAddress.phone).toBe('9988776655');
+
+      // Stock deducted for replacement item
+      const stockAfter = (await Product.findById(testProduct._id)).stock;
+      expect(stockAfter).toBe(initialStock - 1);
+
+      // Verify two-way link in source order timeline
+      const updatedSource = await Order.findById(prepaidOrder._id);
+      const hasTimelineLink = updatedSource.timeline.some(t => t.message.includes(cloned.orderId));
+      expect(hasTimelineLink).toBe(true);
+
+      await Order.findByIdAndDelete(prepaidOrder._id);
+      await Order.findOneAndDelete({ orderId: cloned.orderId });
+    });
   });
 
   // Issue 2: Customer and Admin Invoice stream consistency

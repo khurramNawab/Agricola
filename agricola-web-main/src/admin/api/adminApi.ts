@@ -626,11 +626,29 @@ export async function downloadLabel(id: string, orderId: string): Promise<void> 
   await downloadPdf(`/admin/orders/${id}/label`, `label-${orderId}.pdf`);
 }
 
-/** Clone/duplicate an existing order. */
-export async function cloneAdminOrder(id: string, paymentMethod?: string): Promise<AdminOrder> {
+export interface CloneOrderOptions {
+  reason?: string;
+  paymentMethod?: string;
+  warehouseId?: string;
+  shippingAddress?: {
+    name?: string;
+    phone?: string;
+    street?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  };
+}
+
+/** Clone/re-ship a replacement order. */
+export async function cloneAdminOrder(
+  id: string,
+  options?: CloneOrderOptions | string
+): Promise<AdminOrder> {
+  const payload = typeof options === "string" ? { paymentMethod: options } : options || {};
   return apiData<AdminOrder>(`/admin/orders/${id}/clone`, {
     method: "POST",
-    body: paymentMethod ? { paymentMethod } : undefined,
+    body: payload,
   });
 }
 
