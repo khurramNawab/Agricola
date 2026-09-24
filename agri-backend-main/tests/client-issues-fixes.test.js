@@ -317,6 +317,119 @@ describe('Client Issues 1-7 Verification Suite', () => {
     });
   });
 
+  // Delivery Details Update API (Before Carrier Acceptance)
+  describe('Delivery Details Update API (Before Carrier Acceptance)', () => {
+    test('Customer can update delivery address before carrier booking', async () => {
+      const pendingOrder = await Order.create({
+        orderId: 'ORD_ADDR_EDIT_OK',
+        user: customerUser._id,
+        items: [{ product: testProduct._id, name: testProduct.name, quantity: 1, price: 350, subtotal: 350 }],
+        pricing: { subtotal: 350, total: 350, shipping: 0, tax: 0, discount: 0 },
+        paymentMethod: 'cod',
+        status: 'pending',
+        shippingAddress: sampleOrder.shippingAddress
+      });
+
+      const res = await request(app)
+        .put(`/api/v1/orders/${pendingOrder._id}/shipping-address`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          name: 'Updated Name',
+          phone: '9876543210',
+          street: 'Flat 101, New Residency Road',
+          city: 'Kaithal',
+          state: 'Haryana',
+          pincode: '136027'
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.address.name).toBe('Updated Name');
+      expect(res.body.data.address.phone).toBe('9876543210');
+      expect(res.body.data.address.city).toBe('Kaithal');
+      expect(res.body.data.address.pincode).toBe('136027');
+
+      await Order.findByIdAndDelete(pendingOrder._id);
+    });
+
+    test('Customer cannot update delivery address after carrier booking (Shiprocket/Ekart tracking present)', async () => {
+      const bookedOrder = await Order.create({
+        orderId: 'ORD_ADDR_EDIT_LOCKED',
+        user: customerUser._id,
+        items: [{ product: testProduct._id, name: testProduct.name, quantity: 1, price: 350, subtotal: 350 }],
+        pricing: { subtotal: 350, total: 350, shipping: 0, tax: 0, discount: 0 },
+        paymentMethod: 'cod',
+        status: 'processing',
+        shipping: {
+          trackingNumber: 'AWB_LOCKED_888',
+          provider: 'shiprocket'
+        },
+        shippingAddress: sampleOrder.shippingAddress
+      });
+
+      const res = await request(app)
+        .put(`/api/v1/orders/${bookedOrder._id}/shipping-address`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          name: 'Hacker Attempt',
+          phone: '9876543210',
+          street: 'Different Street',
+          city: 'Kaithal',
+          state: 'Haryana',
+          pincode: '136027'
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('SHIPMENT_ALREADY_BOOKED');
+
+      await Order.findByIdAndDelete(bookedOrder._id);
+    });
+
+    test('Rejects invalid phone or pincode when editing delivery details', async () => {
+      const testOrder = await Order.create({
+        orderId: 'ORD_ADDR_VALIDATION',
+        user: customerUser._id,
+        items: [{ product: testProduct._id, name: testProduct.name, quantity: 1, price: 350, subtotal: 350 }],
+        pricing: { subtotal: 350, total: 350, shipping: 0, tax: 0, discount: 0 },
+        paymentMethod: 'cod',
+        status: 'pending',
+        shippingAddress: sampleOrder.shippingAddress
+      });
+
+      // Invalid phone
+      const phoneRes = await request(app)
+        .put(`/api/v1/orders/${testOrder._id}/shipping-address`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          name: 'Test Name',
+          phone: '123', // not 10 digits
+          street: 'Test Street',
+          city: 'City',
+          state: 'State',
+          pincode: '136027'
+        });
+      expect(phoneRes.status).toBe(400);
+      expect(phoneRes.body.error.code).toBe('VALIDATION_ERROR');
+
+      // Invalid pincode
+      const pinRes = await request(app)
+        .put(`/api/v1/orders/${testOrder._id}/shipping-address`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          name: 'Test Name',
+          phone: '9876543210',
+          street: 'Test Street',
+          city: 'City',
+          state: 'State',
+          pincode: '123' // not 6 digits
+        });
+      expect(pinRes.status).toBe(400);
+      expect(pinRes.body.error.code).toBe('VALIDATION_ERROR');
+
+      await Order.findByIdAndDelete(testOrder._id);
+    });
+  });
+
   // Issue 5: Coupon Delete API
   describe('Issue 5: Admin Coupon Delete (Smart Delete)', () => {
     test('Hard deletes coupon if it has never been used in orders', async () => {

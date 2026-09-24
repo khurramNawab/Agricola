@@ -7,6 +7,7 @@ import {
   downloadOrderInvoice,
   emailOrderInvoice,
   cancelCustomerOrder,
+  updateOrderShippingAddress,
   type OrderDetail
 } from "../lib/checkout";
 
@@ -35,6 +36,20 @@ export default function OrderDetails() {
   const [cancelError, setCancelError] = useState("");
   const [cancelSuccessMsg, setCancelSuccessMsg] = useState("");
 
+  // Delivery details edit state (allowed before carrier accepts/books shipment)
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [updatingAddress, setUpdatingAddress] = useState(false);
+  const [addressForm, setAddressForm] = useState({
+    name: "",
+    phone: "",
+    street: "",
+    city: "",
+    state: "",
+    pincode: "",
+  });
+  const [addressError, setAddressError] = useState("");
+  const [addressSuccessMsg, setAddressSuccessMsg] = useState("");
+
   const canCancel = Boolean(
     order &&
     ["pending", "confirmed", "processing"].includes(order.status) &&
@@ -44,6 +59,47 @@ export default function OrderDetails() {
     order.status !== "cancelled" &&
     order.status !== "refunded"
   );
+
+  const canEditAddress = Boolean(
+    order &&
+    order.address &&
+    !order.shipping?.trackingNumber &&
+    !order.shipping?.providerOrderId &&
+    !order.shipping?.shippedAt &&
+    ["pending", "confirmed"].includes(order.status)
+  );
+
+  const openAddressEditModal = () => {
+    if (!order?.address) return;
+    setAddressForm({
+      name: order.address.name || "",
+      phone: String(order.address.phone || "").replace(/\D/g, "").slice(-10),
+      street: order.address.street || "",
+      city: order.address.city || "",
+      state: order.address.state || "",
+      pincode: String(order.address.pincode || "").replace(/\D/g, "").slice(0, 6),
+    });
+    setAddressError("");
+    setAddressModalOpen(true);
+  };
+
+  const handleSaveAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order || updatingAddress) return;
+    setUpdatingAddress(true);
+    setAddressError("");
+    try {
+      const updated = await updateOrderShippingAddress(order.id || id, addressForm);
+      setOrder(updated);
+      setAddressModalOpen(false);
+      setAddressSuccessMsg("Delivery details updated successfully!");
+      setTimeout(() => setAddressSuccessMsg(""), 6000);
+    } catch (err) {
+      setAddressError(err instanceof Error ? err.message : "Failed to update delivery address");
+    } finally {
+      setUpdatingAddress(false);
+    }
+  };
 
   const handleCancelOrder = async () => {
     if (!order || cancelling) return;
@@ -291,6 +347,13 @@ export default function OrderDetails() {
           </div>
         </section>
 
+        {addressSuccessMsg && (
+          <div className="mb-6 p-4 rounded-2xl bg-[#c9ecc4]/70 border border-[#84b817]/40 text-[#1e3a1f] text-xs sm:text-sm font-bold flex items-center gap-2 shadow-2xs animate-in fade-in">
+            <span className="material-symbols-outlined text-[#486800]">check_circle</span>
+            <span>{addressSuccessMsg}</span>
+          </div>
+        )}
+
         {cancelSuccessMsg && (
           <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm font-bold flex items-center gap-2 shadow-2xs animate-in fade-in">
             <span className="material-symbols-outlined text-amber-700">check_circle</span>
@@ -478,32 +541,79 @@ export default function OrderDetails() {
             {/* Address & Payment Info Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {/* Delivery Address Card */}
-              <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="material-symbols-outlined text-[#486800] text-xl">location_on</span>
-                  <h4 className="text-base font-extrabold text-[#1e3a1f]">Delivery Address</h4>
-                </div>
-                {order.address ? (
-                  <div className="text-xs text-[#434936] space-y-1 leading-relaxed">
-                    <p className="font-extrabold text-[#1e3a1f] text-sm">{order.address.name}</p>
-                    <p>
-                      {[
-                        order.address.street,
-                        order.address.city,
-                        order.address.state,
-                        order.address.pincode,
-                        order.address.country,
-                      ]
-                        .filter(Boolean)
-                        .join(", ")}
-                    </p>
-                    {order.address.phone && (
-                      <p className="font-semibold text-[#1e3a1f] pt-1">📞 {order.address.phone}</p>
+              <div className="bg-white rounded-3xl p-6 shadow-xs border border-gray-100 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[#486800] text-xl">location_on</span>
+                      <h4 className="text-base font-extrabold text-[#1e3a1f]">Delivery Address</h4>
+                    </div>
+                    {canEditAddress ? (
+                      <button
+                        type="button"
+                        onClick={openAddressEditModal}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-[#486800] hover:text-[#1e3a1f] px-3 py-1 rounded-full bg-[#f5f3f0] hover:bg-[#eaf3db] transition-colors cursor-pointer border border-[#486800]/20"
+                        title="Edit recipient name, phone or address"
+                      >
+                        <span className="material-symbols-outlined text-xs">edit</span>
+                        <span>Change</span>
+                      </button>
+                    ) : (
+                      <span
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-400 bg-gray-100 px-2.5 py-0.5 rounded-full"
+                        title="Delivery details are locked once the order is accepted/booked with the courier."
+                      >
+                        <span className="material-symbols-outlined text-xs">lock</span>
+                        <span>Locked</span>
+                      </span>
                     )}
                   </div>
-                ) : (
-                  <p className="text-xs text-gray-400">Address information unavailable.</p>
-                )}
+
+                  {order.address ? (
+                    <div className="text-xs text-[#434936] space-y-1.5 leading-relaxed">
+                      <p className="font-extrabold text-[#1e3a1f] text-sm flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-sm text-gray-400">person</span>
+                        <span>{order.address.name}</span>
+                      </p>
+                      <p className="flex items-start gap-1.5 text-gray-600">
+                        <span className="material-symbols-outlined text-sm text-gray-400 shrink-0 mt-0.5">home_pin</span>
+                        <span>
+                          {[
+                            order.address.street,
+                            order.address.city,
+                            order.address.state,
+                            order.address.pincode,
+                            order.address.country,
+                          ]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </span>
+                      </p>
+                      {order.address.phone && (
+                        <p className="font-bold text-[#1e3a1f] pt-0.5 flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-sm text-gray-400">call</span>
+                          <span>+91 {order.address.phone.replace(/\D/g, '').slice(-10)}</span>
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400">Address information unavailable.</p>
+                  )}
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-gray-100 text-[11px]">
+                  {canEditAddress ? (
+                    <p className="text-[#486800] flex items-center gap-1 font-medium">
+                      <span className="material-symbols-outlined text-xs">info</span>
+                      <span>You can edit address until carrier dispatch.</span>
+                    </p>
+                  ) : (
+                    <p className="text-gray-400 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs">lock</span>
+                      <span>Locked with courier partner.</span>
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Payment Details Card */}
@@ -699,6 +809,177 @@ export default function OrderDetails() {
                   <span>{cancelling ? "Cancelling Order…" : "Yes, Cancel Order"}</span>
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Customer Edit Delivery Details Modal */}
+        {addressModalOpen && (
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="address-modal-title"
+          >
+            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#c9ecc4]/60 text-[#486800] flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-xl">home_pin</span>
+                  </div>
+                  <div>
+                    <h3 id="address-modal-title" className="text-base font-black text-[#1e3a1f]">
+                      Edit Delivery Details
+                    </h3>
+                    <p className="text-xs text-[#434936]">
+                      Order #{order.orderId} • Allowed before courier dispatch
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAddressModalOpen(false)}
+                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 flex items-center justify-center transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                </button>
+              </div>
+
+              {addressError && (
+                <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">error</span>
+                  <span>{addressError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSaveAddress} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#1e3a1f] mb-1">
+                    Recipient Full Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.name}
+                    onChange={(e) => setAddressForm({ ...addressForm, name: e.target.value })}
+                    placeholder="e.g. Rahul Sharma"
+                    className="w-full text-xs font-medium text-[#1e3a1f] bg-[#fbf9f6] border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-hidden focus:ring-2 focus:ring-[#486800]/20 focus:border-[#486800]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#1e3a1f] mb-1">
+                    Contact Mobile Number (10 digits) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3 text-xs font-bold text-gray-400 select-none">
+                      +91
+                    </span>
+                    <input
+                      type="tel"
+                      required
+                      maxLength={10}
+                      value={addressForm.phone}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                        setAddressForm({ ...addressForm, phone: val });
+                      }}
+                      placeholder="9876543210"
+                      className="w-full text-xs font-medium text-[#1e3a1f] bg-[#fbf9f6] border border-gray-200 rounded-xl pl-11 pr-3.5 py-2.5 focus:outline-hidden focus:ring-2 focus:ring-[#486800]/20 focus:border-[#486800]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#1e3a1f] mb-1">
+                    Flat, House No., Building, Street, Landmark <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={2}
+                    value={addressForm.street}
+                    onChange={(e) => setAddressForm({ ...addressForm, street: e.target.value })}
+                    placeholder="e.g. Flat 402, Green Valley Apts, Prempura Street"
+                    className="w-full text-xs font-medium text-[#1e3a1f] bg-[#fbf9f6] border border-gray-200 rounded-xl p-3 focus:outline-hidden focus:ring-2 focus:ring-[#486800]/20 focus:border-[#486800]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-[#1e3a1f] mb-1">
+                      City <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={addressForm.city}
+                      onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
+                      placeholder="e.g. Kaithal"
+                      className="w-full text-xs font-medium text-[#1e3a1f] bg-[#fbf9f6] border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-hidden focus:ring-2 focus:ring-[#486800]/20 focus:border-[#486800]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#1e3a1f] mb-1">
+                      State <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={addressForm.state}
+                      onChange={(e) => setAddressForm({ ...addressForm, state: e.target.value })}
+                      placeholder="e.g. Haryana"
+                      className="w-full text-xs font-medium text-[#1e3a1f] bg-[#fbf9f6] border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-hidden focus:ring-2 focus:ring-[#486800]/20 focus:border-[#486800]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#1e3a1f] mb-1">
+                    PIN Code (6 digits) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={addressForm.pincode}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                      setAddressForm({ ...addressForm, pincode: val });
+                    }}
+                    placeholder="e.g. 136027"
+                    className="w-full text-xs font-medium text-[#1e3a1f] bg-[#fbf9f6] border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-hidden focus:ring-2 focus:ring-[#486800]/20 focus:border-[#486800]"
+                  />
+                </div>
+
+                <div className="p-3 bg-[#f5f3f0] rounded-xl text-[11px] text-[#434936] flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm text-[#486800]">verified</span>
+                  <span>Once updated, our logistics system will direct your package to this new address.</span>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    disabled={updatingAddress}
+                    onClick={() => {
+                      setAddressModalOpen(false);
+                      setAddressError("");
+                    }}
+                    className="px-4 py-2.5 rounded-full border border-gray-200 text-xs font-bold text-[#434936] hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updatingAddress}
+                    className="px-5 py-2.5 rounded-full bg-[#486800] hover:bg-[#1e3a1f] text-xs font-bold text-white flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {updatingAddress && (
+                      <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                    )}
+                    <span>{updatingAddress ? "Saving Address…" : "Save Delivery Details"}</span>
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
