@@ -341,6 +341,7 @@ export interface OrderDetail {
     trackingUrl: string | null;
     estimatedDelivery: string | null;
     shippedAt?: string | null;
+    providerOrderId?: string | null;
   } | null;
   timeline: { status: string; message: string; at: string }[];
   createdAt: string;
@@ -418,6 +419,32 @@ export async function cancelCustomerOrder(
       ...authOpts(),
       method: "PUT",
       body: { reason: reason || "Cancelled by customer" },
+    }
+  );
+  return res;
+}
+
+export interface UpdateShippingAddressInput {
+  name: string;
+  phone: string;
+  street: string;
+  city: string;
+  state: string;
+  pincode: string;
+  country?: string;
+}
+
+/** Update order delivery details before carrier booking. */
+export async function updateOrderShippingAddress(
+  orderId: string,
+  address: UpdateShippingAddressInput
+): Promise<OrderDetail> {
+  const res = await apiData<OrderDetail>(
+    `/orders/${encodeURIComponent(orderId)}/shipping-address`,
+    {
+      ...authOpts(),
+      method: "PUT",
+      body: address,
     }
   );
   return res;

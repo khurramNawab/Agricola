@@ -59,10 +59,12 @@ const toOrder = (order) => {
     address: o.shippingAddress,
     shipping: {
       carrier: o.shipping?.carrier || null,
+      provider: o.shipping?.provider || null,
       trackingNumber: o.shipping?.trackingNumber || null,
       trackingUrl: o.shipping?.trackingUrl || null,
       estimatedDelivery: o.shipping?.estimatedDelivery || null,
-      shippedAt: o.shipping?.shippedAt || null
+      shippedAt: o.shipping?.shippedAt || null,
+      providerOrderId: o.shipping?.providerOrderId || null
     },
     timeline: (o.timeline || []).map((t) => ({ status: t.status, message: t.message, at: t.timestamp })),
     createdAt: o.createdAt
@@ -566,6 +568,151 @@ const cancelOrder = async (req, res) => {
 };
 router.put('/:id/cancel', authenticate, cancelOrder);
 router.patch('/:id/cancel', authenticate, cancelOrder);
+
+// @desc    Update delivery details (name, phone, address) before order is accepted/booked by carrier (Shiprocket/Ekart)
+// @route   PUT /api/v1/orders/:id/shipping-address
+// @access  Private
+const updateShippingAddress = async (req, res) => {
+  try {
+    const rawId = req.params.id;
+    const isObjectId = mongoose.Types.ObjectId.isValid(rawId);
+    const query = {
+      ...(isObjectId ? { $or: [{ _id: rawId }, { orderId: rawId }] } : { orderId: rawId })
+    };
+    if (req.user.role !== 'admin') {
+      query.user = req.user._id;
+    }
+
+    const order = await Order.findOne(query);
+    if (!order) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
+    }
+
+    // Disallow if already booked/accepted on Shiprocket or Ekart (tracking number assigned or shipped)
+    const hasCarrierShipment = Boolean(
+      order.shipping && (order.shipping.trackingNumber || order.shipping.providerOrderId || order.shipping.shippedAt)
+    );
+    if (hasCarrierShipment || ['shipped', 'delivered'].includes(order.status)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'SHIPMENT_ALREADY_BOOKED',
+          message: 'Delivery details cannot be edited because the order has already been booked with the logistics courier (Shiprocket/Ekart).'
+        }
+      });
+    }
+
+    if (['cancelled', 'refunded'].includes(order.status)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'ALREADY_CANCELLED',
+          message: 'Cannot update delivery details for a cancelled or refunded order'
+        }
+      });
+    }
+
+    const { name, phone, mobile, street, address, house, locality, city, state, pincode, country } = req.body || {};
+
+    const newName = String(name !== undefined ? name : order.shippingAddress?.name || '').trim();
+    const newPhone = String(phone || mobile || order.shippingAddress?.phone || '').trim();
+    const resolvedStreet = [house, street || address, locality].filter(Boolean).join(', ').trim() || String(street || address || order.shippingAddress?.street || '').trim();
+    const newCity = String(city !== undefined ? city : order.shippingAddress?.city || '').trim();
+    const newState = String(state !== undefined ? state : order.shippingAddress?.state || '').trim();
+    const newPincode = String(pincode || order.shippingAddress?.pincode || '').trim();
+    const newCountry = String(country || order.shippingAddress?.country || 'India').trim();
+
+    if (!newName) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Recipient name is required' } });
+    }
+    const cleanPhone = newPhone.replace(/\D/g, '').slice(-10);
+    if (cleanPhone.length !== 10) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Please provide a valid 10-digit mobile number' } });
+    }
+    if (!resolvedStreet) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Street address is required' } });
+    }
+    if (!newCity) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'City is required' } });
+    }
+    if (!newState) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'State is required' } });
+    }
+    const cleanPin = newPincode.replace(/\D/g, '');
+    if (cleanPin.length !== 6) {
+      return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Please provide a valid 6-digit postal pincode' } });
+    }
+
+    // If pincode changed, check coverage with active carrier client (fail-open on carrier errors)
+    if (cleanPin !== order.shippingAddress?.pincode) {
+      const shipping = require('../utils/shipping');
+      if (shipping.anyConfigured()) {
+        try {
+          const coverage = await shipping.getCoverage(cleanPin);
+          if (coverage && !coverage.serviceable) {
+            return res.status(400).json({
+              success: false,
+              error: {
+                code: 'PINCODE_NOT_SERVICEABLE',
+                message: `Sorry, delivery to pincode ${cleanPin} is not available.`
+              }
+            });
+          }
+          if (coverage?.provider) {
+            order.shipping = order.shipping || {};
+            order.shipping.provider = coverage.provider;
+          }
+        } catch (servErr) {
+          console.warn('Pincode serviceability check skipped on address update:', servErr.message);
+        }
+      }
+    }
+
+    order.shippingAddress = {
+      name: newName,
+      phone: cleanPhone,
+      street: resolvedStreet,
+      city: newCity,
+      state: newState,
+      pincode: cleanPin,
+      country: newCountry
+    };
+
+    if (order.billingAddress && order.billingAddress.sameAsShipping) {
+      order.billingAddress = {
+        name: newName,
+        phone: cleanPhone,
+        street: resolvedStreet,
+        city: newCity,
+        state: newState,
+        pincode: cleanPin,
+        country: newCountry,
+        sameAsShipping: true
+      };
+    }
+
+    order.timeline.push({
+      status: 'address_updated',
+      message: `Delivery details updated to: ${newName}, ${cleanPhone}, ${newCity} - ${cleanPin}`,
+      timestamp: new Date(),
+      updatedBy: req.user._id
+    });
+
+    await order.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Delivery address updated successfully',
+      data: toOrder(order)
+    });
+  } catch (error) {
+    console.error('Update shipping address error:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update delivery address' } });
+  }
+};
+router.put('/:id/shipping-address', authenticate, updateShippingAddress);
+router.put('/:id/delivery-details', authenticate, updateShippingAddress);
+router.patch('/:id/shipping-address', authenticate, updateShippingAddress);
 
 // @desc    Discard an unpaid pending order (e.g. the customer cancelled Razorpay).
 //          Only deletes an order that is still pending + unpaid — Razorpay orders
