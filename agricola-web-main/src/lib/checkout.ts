@@ -340,6 +340,7 @@ export interface OrderDetail {
     trackingNumber: string | null;
     trackingUrl: string | null;
     estimatedDelivery: string | null;
+    shippedAt?: string | null;
   } | null;
   timeline: { status: string; message: string; at: string }[];
   createdAt: string;
@@ -404,6 +405,22 @@ export async function emailOrderInvoice(
       body: email ? { email } : undefined,
     }
   );
+}
+
+/** Cancel an active customer order before pickup/dispatch. */
+export async function cancelCustomerOrder(
+  id: string,
+  reason?: string
+): Promise<OrderDetail> {
+  const res = await apiData<OrderDetail>(
+    `/orders/${encodeURIComponent(id)}/cancel`,
+    {
+      ...authOpts(),
+      method: "PUT",
+      body: { reason: reason || "Cancelled by customer" },
+    }
+  );
+  return res;
 }
 
 // Guest order tracking: orderId + the mobile on the order's shipping address.

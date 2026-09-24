@@ -2140,74 +2140,92 @@ router.post('/orders/:id/clone', async (req, res) => {
       }
     }
 
-    // 3. Build cloned order document
-    const clonedOrder = new Order({
-      user: source.user,
-      email: source.email,
-      items: source.items.map((i) => ({
-        product: i.product?._id || i.product,
-        name: i.name,
-        weight: i.weight,
-        price: i.price,
-        quantity: i.quantity,
-        image: i.image,
-        subtotal: i.subtotal
-      })),
-      shippingAddress: {
-        name: source.shippingAddress?.name || 'Customer',
-        phone: source.shippingAddress?.phone || '',
-        street: source.shippingAddress?.street || '',
-        city: source.shippingAddress?.city || '',
-        state: source.shippingAddress?.state || '',
-        pincode: source.shippingAddress?.pincode || '',
-        country: source.shippingAddress?.country || 'India'
-      },
-      billingAddress: source.billingAddress ? {
-        name: source.billingAddress.name,
-        phone: source.billingAddress.phone,
-        street: source.billingAddress.street,
-        city: source.billingAddress.city,
-        state: source.billingAddress.state,
-        pincode: source.billingAddress.pincode,
-        country: source.billingAddress.country || 'India',
-        sameAsShipping: source.billingAddress.sameAsShipping !== false
-      } : undefined,
-      pricing: {
-        subtotal: source.pricing?.subtotal || 0,
-        shipping: source.pricing?.shipping || 0,
-        tax: source.pricing?.tax || 0,
-        discount: 0, // Reset discount on cloned order
-        total: (source.pricing?.subtotal || 0) + (source.pricing?.shipping || 0)
-      },
-      paymentMethod,
-      status: 'pending',
-      paymentStatus: 'pending',
-      awaitingWarehouseAssignment: true,
-      warehouse: null,
-      shipping: {
-        method: source.shipping?.method || 'standard',
-        cost: source.shipping?.cost || 0
-      },
-      notes: {
-        customer: source.notes?.customer || '',
-        admin: `Cloned from ${source.orderId} by admin`
-      },
-      timeline: [{
+      const isMultiWh = process.env.ENABLE_MULTI_WAREHOUSE === 'true';
+      const assignedWarehouseId = req.body.warehouseId || source.warehouse || null;
+      const awaitingAssignment = isMultiWh ? !assignedWarehouseId : false;
+
+      // 3. Build cloned order document
+      const clonedOrder = new Order({
+        user: source.user,
+        email: source.email,
+        items: source.items.map((i) => ({
+          product: i.product?._id || i.product,
+          name: i.name,
+          weight: i.weight,
+          price: i.price,
+          quantity: i.quantity,
+          image: i.image,
+          subtotal: i.subtotal
+        })),
+        shippingAddress: {
+          name: source.shippingAddress?.name || 'Customer',
+          phone: source.shippingAddress?.phone || '',
+          street: source.shippingAddress?.street || '',
+          city: source.shippingAddress?.city || '',
+          state: source.shippingAddress?.state || '',
+          pincode: source.shippingAddress?.pincode || '',
+          country: source.shippingAddress?.country || 'India'
+        },
+        billingAddress: source.billingAddress ? {
+          name: source.billingAddress.name,
+          phone: source.billingAddress.phone,
+          street: source.billingAddress.street,
+          city: source.billingAddress.city,
+          state: source.billingAddress.state,
+          pincode: source.billingAddress.pincode,
+          country: source.billingAddress.country || 'India',
+          sameAsShipping: source.billingAddress.sameAsShipping !== false
+        } : undefined,
+        pricing: {
+          subtotal: source.pricing?.subtotal || 0,
+          shipping: source.pricing?.shipping || 0,
+          tax: source.pricing?.tax || 0,
+          discount: 0, // Reset discount on cloned order
+          total: (source.pricing?.subtotal || 0) + (source.pricing?.shipping || 0)
+        },
+        paymentMethod,
         status: 'pending',
-        message: `Order cloned from ${source.orderId}`,
-        timestamp: new Date(),
-        updatedBy: req.user._id
-      }]
-    });
+        paymentStatus: (paymentMethod === 'cod') ? 'pending' : (source.paymentStatus === 'paid' ? 'paid' : 'pending'),
+        awaitingWarehouseAssignment: awaitingAssignment,
+        warehouse: assignedWarehouseId,
+        shipping: {
+          method: source.shipping?.method || 'standard',
+          cost: source.shipping?.cost || 0,
+          provider: req.body.shippingProvider || source.shipping?.provider || 'shiprocket'
+        },
+        notes: {
+          customer: source.notes?.customer || '',
+          admin: `Cloned from ${source.orderId} by admin`
+        },
+        timeline: [{
+          status: 'pending',
+          message: `Order cloned from ${source.orderId}`,
+          timestamp: new Date(),
+          updatedBy: req.user._id
+        }]
+      });
 
-    await clonedOrder.save();
-    await clonedOrder.populate('user', 'name email userId');
+      await clonedOrder.save();
+      await clonedOrder.populate('user', 'name email userId');
+      if (clonedOrder.warehouse) {
+        await clonedOrder.populate('warehouse', 'code name address shiprocketPickupNickname');
+      }
 
-    res.status(201).json({
-      success: true,
-      message: `Order cloned successfully as ${clonedOrder.orderId}`,
-      data: toAdminOrder(clonedOrder)
-    });
+      // Automatically book shipment on Shiprocket if warehouse is assigned or multi-warehouse disabled
+      const shipping = require('../utils/shipping');
+      if (shipping.isConfigured() && !clonedOrder.awaitingWarehouseAssignment) {
+        try {
+          await shipping.autoCreateShipment(clonedOrder);
+        } catch (shipErr) {
+          console.error(`Shipment auto-create failed for cloned order ${clonedOrder.orderId}:`, shipErr.message);
+        }
+      }
+
+      res.status(201).json({
+        success: true,
+        message: `Order cloned successfully as ${clonedOrder.orderId}`,
+        data: toAdminOrder(clonedOrder)
+      });
   } catch (error) {
     console.error('Clone order error:', error);
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Failed to clone order' } });
