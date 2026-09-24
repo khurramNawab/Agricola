@@ -1470,7 +1470,13 @@ const toAdminOrder = (order) => {
     status: capitalize(order.status),
     date: order.createdAt,
     awaitingWarehouseAssignment: !!order.awaitingWarehouseAssignment,
-    warehouse: wh ? { id: wh._id, code: wh.code, name: wh.name, city: wh.address?.city, state: wh.address?.state } : (order.warehouse || null)
+    warehouse: wh ? { id: wh._id, code: wh.code, name: wh.name, city: wh.address?.city, state: wh.address?.state } : (order.warehouse || null),
+    shippingAddress: order.shippingAddress || null,
+    shipping: {
+      carrier: order.shipping?.carrier || null,
+      trackingNumber: order.shipping?.trackingNumber || null,
+      provider: order.shipping?.provider || null
+    }
   };
 };
 
@@ -2119,113 +2125,132 @@ router.post('/orders/:id/clone', async (req, res) => {
       });
     }
 
-    // 2. Stock handling: match existing logic
-    // If COD, deduct stock immediately upon clone creation (matching normal COD orders in orders.js).
-    // If prepaid, stock is validated upfront (above) and decrements when paid/confirmed.
+    // 2. Physical Stock Deduction for replacement dispatch
+    // A fresh physical parcel will leave the warehouse, so stock is decremented
+    // for all cloned replacement orders.
     const paymentMethod = req.body.paymentMethod || source.paymentMethod || 'cod';
-    if (paymentMethod === 'cod') {
-      for (const item of source.items) {
-        const pid = item.product?._id || item.product;
-        const qty = item.quantity || 1;
+    const isSourcePaid = source.paymentStatus === 'paid' && paymentMethod !== 'cod';
+    const clonePaymentStatus = req.body.paymentStatus || (isSourcePaid ? 'paid' : 'pending');
+
+    for (const item of source.items) {
+      const pid = item.product?._id || item.product;
+      const qty = item.quantity || 1;
+      await Product.updateOne(
+        { _id: pid, stock: { $gte: qty } },
+        { $inc: { stock: -qty } }
+      );
+      if (item.weight) {
         await Product.updateOne(
-          { _id: pid, stock: { $gte: qty } },
-          { $inc: { stock: -qty } }
+          { _id: pid, 'variantStocks.size': item.weight },
+          { $inc: { 'variantStocks.$.stock': -qty } }
         );
-        if (item.weight) {
-          await Product.updateOne(
-            { _id: pid, 'variantStocks.size': item.weight },
-            { $inc: { 'variantStocks.$.stock': -qty } }
-          );
-        }
       }
     }
 
-      const isMultiWh = process.env.ENABLE_MULTI_WAREHOUSE === 'true';
-      const assignedWarehouseId = req.body.warehouseId || source.warehouse || null;
-      const awaitingAssignment = isMultiWh ? !assignedWarehouseId : false;
+    const isMultiWh = process.env.ENABLE_MULTI_WAREHOUSE === 'true';
+    const assignedWarehouseId = req.body.warehouseId || source.warehouse || null;
+    const awaitingAssignment = isMultiWh ? !assignedWarehouseId : false;
+    const reason = req.body.reason || 'Delivery replacement / re-dispatch';
 
-      // 3. Build cloned order document
-      const clonedOrder = new Order({
-        user: source.user,
-        email: source.email,
-        items: source.items.map((i) => ({
-          product: i.product?._id || i.product,
-          name: i.name,
-          weight: i.weight,
-          price: i.price,
-          quantity: i.quantity,
-          image: i.image,
-          subtotal: i.subtotal
-        })),
-        shippingAddress: {
-          name: source.shippingAddress?.name || 'Customer',
-          phone: source.shippingAddress?.phone || '',
-          street: source.shippingAddress?.street || '',
-          city: source.shippingAddress?.city || '',
-          state: source.shippingAddress?.state || '',
-          pincode: source.shippingAddress?.pincode || '',
-          country: source.shippingAddress?.country || 'India'
-        },
-        billingAddress: source.billingAddress ? {
-          name: source.billingAddress.name,
-          phone: source.billingAddress.phone,
-          street: source.billingAddress.street,
-          city: source.billingAddress.city,
-          state: source.billingAddress.state,
-          pincode: source.billingAddress.pincode,
-          country: source.billingAddress.country || 'India',
-          sameAsShipping: source.billingAddress.sameAsShipping !== false
-        } : undefined,
-        pricing: {
-          subtotal: source.pricing?.subtotal || 0,
-          shipping: source.pricing?.shipping || 0,
-          tax: source.pricing?.tax || 0,
-          discount: 0, // Reset discount on cloned order
-          total: (source.pricing?.subtotal || 0) + (source.pricing?.shipping || 0)
-        },
-        paymentMethod,
+    // Allow updating recipient phone/address if delivery failed due to wrong address
+    const reqAddr = req.body.shippingAddress || {};
+    const finalShippingAddress = {
+      name: (reqAddr.name || source.shippingAddress?.name || 'Customer').trim(),
+      phone: String(reqAddr.phone || source.shippingAddress?.phone || '').trim(),
+      street: (reqAddr.street || source.shippingAddress?.street || '').trim(),
+      city: (reqAddr.city || source.shippingAddress?.city || '').trim(),
+      state: (reqAddr.state || source.shippingAddress?.state || '').trim(),
+      pincode: String(reqAddr.pincode || source.shippingAddress?.pincode || '').trim(),
+      country: (reqAddr.country || source.shippingAddress?.country || 'India').trim()
+    };
+
+    // 3. Build cloned order document
+    const clonedOrder = new Order({
+      user: source.user,
+      email: source.email,
+      items: source.items.map((i) => ({
+        product: i.product?._id || i.product,
+        name: i.name,
+        weight: i.weight,
+        price: i.price,
+        quantity: i.quantity,
+        image: i.image,
+        subtotal: i.subtotal
+      })),
+      shippingAddress: finalShippingAddress,
+      billingAddress: source.billingAddress ? {
+        name: finalShippingAddress.name,
+        phone: finalShippingAddress.phone,
+        street: finalShippingAddress.street,
+        city: finalShippingAddress.city,
+        state: finalShippingAddress.state,
+        pincode: finalShippingAddress.pincode,
+        country: finalShippingAddress.country,
+        sameAsShipping: source.billingAddress.sameAsShipping !== false
+      } : undefined,
+      pricing: {
+        subtotal: source.pricing?.subtotal || 0,
+        shipping: source.pricing?.shipping || 0,
+        tax: source.pricing?.tax || 0,
+        discount: 0,
+        total: (source.pricing?.subtotal || 0) + (source.pricing?.shipping || 0)
+      },
+      paymentMethod,
+      status: 'pending',
+      paymentStatus: clonePaymentStatus,
+      awaitingWarehouseAssignment: awaitingAssignment,
+      warehouse: assignedWarehouseId,
+      shipping: {
+        method: source.shipping?.method || 'standard',
+        cost: source.shipping?.cost || 0,
+        provider: req.body.shippingProvider || source.shipping?.provider || 'shiprocket'
+      },
+      notes: {
+        customer: source.notes?.customer || '',
+        admin: `Replacement order for ${source.orderId}. Reason: ${reason}`
+      },
+      timeline: [{
         status: 'pending',
-        paymentStatus: (paymentMethod === 'cod') ? 'pending' : (source.paymentStatus === 'paid' ? 'paid' : 'pending'),
-        awaitingWarehouseAssignment: awaitingAssignment,
-        warehouse: assignedWarehouseId,
-        shipping: {
-          method: source.shipping?.method || 'standard',
-          cost: source.shipping?.cost || 0,
-          provider: req.body.shippingProvider || source.shipping?.provider || 'shiprocket'
-        },
-        notes: {
-          customer: source.notes?.customer || '',
-          admin: `Cloned from ${source.orderId} by admin`
-        },
-        timeline: [{
-          status: 'pending',
-          message: `Order cloned from ${source.orderId}`,
-          timestamp: new Date(),
-          updatedBy: req.user._id
-        }]
-      });
+        message: `Replacement order cloned from ${source.orderId}. Reason: ${reason}`,
+        timestamp: new Date(),
+        updatedBy: req.user._id
+      }]
+    });
 
-      await clonedOrder.save();
-      await clonedOrder.populate('user', 'name email userId');
-      if (clonedOrder.warehouse) {
-        await clonedOrder.populate('warehouse', 'code name address shiprocketPickupNickname');
+    await clonedOrder.save();
+    await clonedOrder.populate('user', 'name email userId');
+    if (clonedOrder.warehouse) {
+      await clonedOrder.populate('warehouse', 'code name address shiprocketPickupNickname');
+    }
+
+    // Automatically book fresh shipment on Shiprocket (generates brand new AWB & Label)
+    const shipping = require('../utils/shipping');
+    if (shipping.isConfigured() && !clonedOrder.awaitingWarehouseAssignment) {
+      try {
+        await shipping.autoCreateShipment(clonedOrder);
+      } catch (shipErr) {
+        console.error(`Shipment auto-create failed for cloned order ${clonedOrder.orderId}:`, shipErr.message);
       }
+    }
 
-      // Automatically book shipment on Shiprocket if warehouse is assigned or multi-warehouse disabled
-      const shipping = require('../utils/shipping');
-      if (shipping.isConfigured() && !clonedOrder.awaitingWarehouseAssignment) {
-        try {
-          await shipping.autoCreateShipment(clonedOrder);
-        } catch (shipErr) {
-          console.error(`Shipment auto-create failed for cloned order ${clonedOrder.orderId}:`, shipErr.message);
-        }
-      }
-
-      res.status(201).json({
-        success: true,
-        message: `Order cloned successfully as ${clonedOrder.orderId}`,
-        data: toAdminOrder(clonedOrder)
+    // Record two-way link on the source order
+    try {
+      source.timeline.push({
+        status: source.status,
+        message: `Replacement shipment #${clonedOrder.orderId} created for this order (Reason: ${reason})`,
+        timestamp: new Date(),
+        updatedBy: req.user._id
       });
+      await source.save();
+    } catch (linkErr) {
+      console.warn('Could not record replacement link on source order:', linkErr.message);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Replacement order created successfully as ${clonedOrder.orderId}`,
+      data: toAdminOrder(clonedOrder)
+    });
   } catch (error) {
     console.error('Clone order error:', error);
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: error.message || 'Failed to clone order' } });
