@@ -61,7 +61,8 @@ const toOrder = (order) => {
       carrier: o.shipping?.carrier || null,
       trackingNumber: o.shipping?.trackingNumber || null,
       trackingUrl: o.shipping?.trackingUrl || null,
-      estimatedDelivery: o.shipping?.estimatedDelivery || null
+      estimatedDelivery: o.shipping?.estimatedDelivery || null,
+      shippedAt: o.shipping?.shippedAt || null
     },
     timeline: (o.timeline || []).map((t) => ({ status: t.status, message: t.message, at: t.timestamp })),
     createdAt: o.createdAt
@@ -466,31 +467,98 @@ router.post('/:id/email-invoice', authenticate, async (req, res) => {
 
 const { restoreOrderStock } = require('../utils/stock');
 
-// @desc    Cancel an order (restores stock)
+// @desc    Cancel an order (before pickup/dispatch, cancels courier shipment and restores stock)
 // @route   PUT /api/v1/orders/:id/cancel  (PATCH alias kept for compatibility)
 // @access  Private
 const cancelOrder = async (req, res) => {
   try {
     const { reason } = req.body || {};
-    const order = await Order.findOne({ _id: req.params.id, user: req.user._id });
+    const rawId = req.params.id;
+    const isObjectId = mongoose.Types.ObjectId.isValid(rawId);
+    const query = {
+      user: req.user._id,
+      ...(isObjectId ? { $or: [{ _id: rawId }, { orderId: rawId }] } : { orderId: rawId })
+    };
+
+    const order = await Order.findOne(query);
     if (!order) {
       return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Order not found' } });
     }
-    if (!['pending', 'confirmed'].includes(order.status)) {
-      return res.status(400).json({ success: false, error: { code: 'INVALID_STATUS', message: 'Order cannot be cancelled in its current status' } });
+
+    // Disallow cancelling if already shipped, out for delivery, or delivered
+    if (['shipped', 'delivered'].includes(order.status) || order.shipping?.shippedAt) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'ORDER_ALREADY_SHIPPED',
+          message: 'Order has already been picked up or dispatched by courier and cannot be cancelled online.'
+        }
+      });
     }
 
-    // Restore stock only if stock was actually decremented (COD orders or paid prepaid orders)
+    if (['cancelled', 'refunded'].includes(order.status)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'ALREADY_CANCELLED', message: 'Order is already cancelled' }
+      });
+    }
+
+    if (!['pending', 'confirmed', 'processing'].includes(order.status)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_STATUS', message: 'Order cannot be cancelled in its current status' }
+      });
+    }
+
+    // Cancel carrier shipment on Shiprocket if shipment was already booked
+    const shipping = require('../utils/shipping');
+    const hasShipment = order.shipping && (order.shipping.trackingNumber || order.shipping.providerOrderId);
+    if (hasShipment) {
+      try {
+        const provider = shipping.providerOfOrder(order);
+        await shipping.cancelShipment({
+          trackingNumber: order.shipping.trackingNumber,
+          providerOrderId: order.shipping.providerOrderId,
+          provider
+        }, reason || 'Cancelled by customer');
+
+        order.timeline.push({
+          status: 'shipment_cancelled',
+          message: `Carrier shipment (${order.shipping.carrier || provider || 'courier'}) cancelled upon customer request`,
+          timestamp: new Date(),
+          updatedBy: req.user._id
+        });
+      } catch (carrierErr) {
+        console.error(`[Customer Cancel] Shiprocket cancellation error for ${order.orderId}:`, carrierErr.message);
+        order.timeline.push({
+          status: 'shipment_cancel_failed',
+          message: `Carrier shipment cancellation notice: ${carrierErr.message}`,
+          timestamp: new Date(),
+          updatedBy: req.user._id
+        });
+      }
+    }
+
+    // Restore stock if stock was decremented (COD orders or paid prepaid orders)
     const wasStockDecremented = order.paymentMethod === 'cod' || order.paymentStatus === 'paid';
     if (wasStockDecremented) {
       await restoreOrderStock(order);
     }
 
     order.status = 'cancelled';
-    order.timeline.push({ status: 'cancelled', message: reason || 'Cancelled by customer', timestamp: new Date(), updatedBy: req.user._id });
+    order.timeline.push({
+      status: 'cancelled',
+      message: reason ? `Order cancelled by customer. Reason: ${reason}` : 'Order cancelled by customer',
+      timestamp: new Date(),
+      updatedBy: req.user._id
+    });
     await order.save();
 
-    res.status(200).json({ success: true, data: toOrder(order), message: 'Order cancelled successfully' });
+    res.status(200).json({
+      success: true,
+      data: toOrder(order),
+      message: 'Order cancelled successfully'
+    });
   } catch (error) {
     console.error('Cancel order error:', error);
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to cancel order' } });

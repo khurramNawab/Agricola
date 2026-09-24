@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import Footer from "../components/layout/Footer";
 import { useStorefront } from "../storefront/StorefrontContext";
-import { getOrder, downloadOrderInvoice, emailOrderInvoice, type OrderDetail } from "../lib/checkout";
+import {
+  getOrder,
+  downloadOrderInvoice,
+  emailOrderInvoice,
+  cancelCustomerOrder,
+  type OrderDetail
+} from "../lib/checkout";
 
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1582793988951-9aed5509eb97?auto=format&fit=crop&w=400&q=70";
@@ -20,6 +26,45 @@ export default function OrderDetails() {
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
   const [emailingInvoice, setEmailingInvoice] = useState(false);
   const [emailSentMsg, setEmailSentMsg] = useState("");
+
+  // Customer cancellation state
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelReason, setCancelReason] = useState("Ordered by mistake");
+  const [customReason, setCustomReason] = useState("");
+  const [cancelError, setCancelError] = useState("");
+  const [cancelSuccessMsg, setCancelSuccessMsg] = useState("");
+
+  const canCancel = Boolean(
+    order &&
+    ["pending", "confirmed", "processing"].includes(order.status) &&
+    !order.shipping?.shippedAt &&
+    order.status !== "shipped" &&
+    order.status !== "delivered" &&
+    order.status !== "cancelled" &&
+    order.status !== "refunded"
+  );
+
+  const handleCancelOrder = async () => {
+    if (!order || cancelling) return;
+    setCancelling(true);
+    setCancelError("");
+    try {
+      const finalReason =
+        cancelReason === "Other"
+          ? (customReason.trim() || "Cancelled by customer")
+          : cancelReason;
+      const updated = await cancelCustomerOrder(order.id || id, finalReason);
+      setOrder(updated);
+      setCancelModalOpen(false);
+      setCancelSuccessMsg("Your order has been cancelled successfully.");
+      setTimeout(() => setCancelSuccessMsg(""), 8000);
+    } catch (err) {
+      setCancelError(err instanceof Error ? err.message : "Failed to cancel order");
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const handleDownloadInvoice = async () => {
     if (!order || downloadingInvoice) return;
@@ -198,6 +243,20 @@ export default function OrderDetails() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            {canCancel && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCancelError("");
+                  setCancelModalOpen(true);
+                }}
+                className="px-4 py-2.5 rounded-full border border-red-200 bg-red-50/80 hover:bg-red-100 text-xs font-bold text-red-700 flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                title="Cancel your order before pickup/dispatch"
+              >
+                <span className="material-symbols-outlined text-sm">cancel</span>
+                <span>Cancel Order</span>
+              </button>
+            )}
             <button
               type="button"
               disabled={downloadingInvoice}
@@ -231,6 +290,13 @@ export default function OrderDetails() {
             </Link>
           </div>
         </section>
+
+        {cancelSuccessMsg && (
+          <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm font-bold flex items-center gap-2 shadow-2xs animate-in fade-in">
+            <span className="material-symbols-outlined text-amber-700">check_circle</span>
+            <span>{cancelSuccessMsg}</span>
+          </div>
+        )}
 
         {emailSentMsg && (
           <div className="mb-6 p-4 rounded-2xl bg-[#c9ecc4]/60 border border-[#84b817]/40 text-[#1e3a1f] text-xs sm:text-sm font-bold flex items-center gap-2 shadow-2xs animate-in fade-in">
@@ -541,6 +607,101 @@ export default function OrderDetails() {
             </div>
           </div>
         </div>
+
+        {/* Customer Cancel Order Modal */}
+        {cancelModalOpen && (
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-modal-title"
+          >
+            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95">
+              <div className="flex items-start gap-4 mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-2xl">warning</span>
+                </div>
+                <div>
+                  <h3 id="cancel-modal-title" className="text-lg font-black text-[#1e3a1f]">
+                    Cancel Order #{order.orderId}?
+                  </h3>
+                  <p className="text-xs text-[#434936] mt-1 leading-relaxed">
+                    You can cancel this order before our logistics team picks up and ships the parcel. This will release the reserved items and halt carrier dispatch.
+                  </p>
+                </div>
+              </div>
+
+              {cancelError && (
+                <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center gap-2">
+                  <span className="material-symbols-outlined text-sm">error</span>
+                  <span>{cancelError}</span>
+                </div>
+              )}
+
+              <div className="space-y-3 mb-6">
+                <label className="block text-xs font-bold text-[#1e3a1f]">
+                  Please let us know the reason for cancellation:
+                </label>
+                <select
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  className="w-full text-xs font-medium text-[#1e3a1f] bg-[#fbf9f6] border border-gray-200 rounded-xl px-3.5 py-2.5 focus:outline-hidden focus:ring-2 focus:ring-[#486800]/20 focus:border-[#486800]"
+                >
+                  <option value="Ordered by mistake">Ordered by mistake</option>
+                  <option value="Need to change shipping address or mobile">Need to change shipping address or mobile</option>
+                  <option value="Want to change items or add coupon">Want to change items or add coupon</option>
+                  <option value="Delivery time is too long">Delivery time is too long</option>
+                  <option value="Found a better price elsewhere">Found a better price elsewhere</option>
+                  <option value="Other">Other reason</option>
+                </select>
+
+                {cancelReason === "Other" && (
+                  <textarea
+                    rows={2}
+                    placeholder="Tell us more about why you're cancelling (optional)..."
+                    value={customReason}
+                    onChange={(e) => setCustomReason(e.target.value)}
+                    className="w-full text-xs text-[#1e3a1f] bg-[#fbf9f6] border border-gray-200 rounded-xl p-3 focus:outline-hidden focus:ring-2 focus:ring-[#486800]/20 focus:border-[#486800]"
+                  />
+                )}
+
+                <div className="p-3 bg-amber-50/70 border border-amber-200/60 rounded-xl text-[11px] text-amber-800 flex items-start gap-2">
+                  <span className="material-symbols-outlined text-sm shrink-0 text-amber-600 mt-0.5">info</span>
+                  <p>
+                    {order.paymentMethod === "cod"
+                      ? "This is a Cash on Delivery order. No payment will be charged upon cancellation."
+                      : "For prepaid orders, any initiated refund will be credited back to your original payment method in 3–5 working days."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  disabled={cancelling}
+                  onClick={() => {
+                    setCancelModalOpen(false);
+                    setCancelError("");
+                  }}
+                  className="px-4 py-2.5 rounded-full border border-gray-200 text-xs font-bold text-[#434936] hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Keep Order
+                </button>
+                <button
+                  type="button"
+                  disabled={cancelling}
+                  onClick={handleCancelOrder}
+                  className="px-5 py-2.5 rounded-full bg-red-600 hover:bg-red-700 text-xs font-bold text-white flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {cancelling && (
+                    <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                  )}
+                  <span>{cancelling ? "Cancelling Order…" : "Yes, Cancel Order"}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
       <Footer />
     </div>

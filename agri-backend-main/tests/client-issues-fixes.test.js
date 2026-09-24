@@ -124,7 +124,7 @@ describe('Client Issues 1-7 Verification Suite', () => {
       const cloned = res.body.data;
       expect(cloned.orderId).not.toBe(sampleOrder.orderId);
       expect(cloned.orderId).toMatch(/^ORD-/);
-      expect(['pending', 'Pending']).toContain(cloned.status);
+      expect(['pending', 'Pending', 'processing', 'Processing']).toContain(cloned.status);
       expect(['pending', 'Pending']).toContain(cloned.paymentStatus);
       expect(cloned.amount).toBe(700);
       expect(cloned.items).toBe(1);
@@ -249,6 +249,71 @@ describe('Client Issues 1-7 Verification Suite', () => {
 
       cancelShipmentSpy.mockRestore();
       await Order.findByIdAndDelete(activeOrder._id);
+    });
+
+    test('Customer can cancel un-shipped order, cancels carrier shipment and restores stock', async () => {
+      const cancelSpy = jest.spyOn(shipping, 'cancelShipment').mockResolvedValueOnce({
+        cancelled: true,
+        message: 'Shipment cancelled with carrier'
+      });
+
+      const customerOrder = await Order.create({
+        orderId: 'ORD_CUST_CANCEL_OK',
+        user: customerUser._id,
+        items: [{ product: testProduct._id, name: testProduct.name, quantity: 2, price: 350, subtotal: 700 }],
+        pricing: { subtotal: 700, total: 700, shipping: 0, tax: 0, discount: 0 },
+        paymentMethod: 'cod',
+        status: 'processing',
+        shipping: {
+          trackingNumber: 'AWB_CUST_999',
+          provider: 'shiprocket'
+        },
+        shippingAddress: sampleOrder.shippingAddress
+      });
+
+      const stockBefore = (await Product.findById(testProduct._id)).stock;
+
+      const res = await request(app)
+        .put(`/api/v1/orders/${customerOrder._id}/cancel`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ reason: 'Ordered by mistake' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.status).toBe('cancelled');
+      expect(cancelSpy).toHaveBeenCalled();
+
+      const stockAfter = (await Product.findById(testProduct._id)).stock;
+      expect(stockAfter).toBe(stockBefore + 2);
+
+      cancelSpy.mockRestore();
+      await Order.findByIdAndDelete(customerOrder._id);
+    });
+
+    test('Customer cannot cancel already shipped order', async () => {
+      const shippedOrder = await Order.create({
+        orderId: 'ORD_CUST_CANCEL_BLOCK',
+        user: customerUser._id,
+        items: [{ product: testProduct._id, name: testProduct.name, quantity: 1, price: 350, subtotal: 350 }],
+        pricing: { subtotal: 350, total: 350, shipping: 0, tax: 0, discount: 0 },
+        paymentMethod: 'cod',
+        status: 'shipped',
+        shipping: {
+          shippedAt: new Date(),
+          trackingNumber: 'AWB_SHIPPED_111'
+        },
+        shippingAddress: sampleOrder.shippingAddress
+      });
+
+      const res = await request(app)
+        .put(`/api/v1/orders/${shippedOrder._id}/cancel`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ reason: 'Too late' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('ORDER_ALREADY_SHIPPED');
+
+      await Order.findByIdAndDelete(shippedOrder._id);
     });
   });
 

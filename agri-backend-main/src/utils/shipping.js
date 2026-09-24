@@ -183,8 +183,11 @@ module.exports = {
 
       if (typeof order.populate === 'function') {
         await order.populate('items.product', 'name productId weight dimensions');
+        if (order.warehouse) {
+          await order.populate('warehouse', 'code name address shiprocketPickupNickname');
+        }
       }
-      const shipment = await client.createShipment(order, { provider: providerOfOrder(order) });
+      const shipment = await client.createShipment(order, { provider: providerOfOrder(order), warehouse: order.warehouse });
       module.exports.applyShipment(order, shipment);
       order.status = 'processing';
       order.timeline.push({
