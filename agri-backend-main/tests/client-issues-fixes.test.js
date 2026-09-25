@@ -10,6 +10,7 @@ const Feedback = require('../src/models/Feedback');
 const shipping = require('../src/utils/shipping');
 
 describe('Client Issues 1-7 Verification Suite', () => {
+  jest.setTimeout(60000);
   let adminToken;
   let customerToken;
   let adminUser;
@@ -20,6 +21,11 @@ describe('Client Issues 1-7 Verification Suite', () => {
   beforeAll(async () => {
     if (mongoose.connection.readyState === 0) {
       await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/agricola_test');
+    } else if (mongoose.connection.readyState !== 1) {
+      await new Promise((resolve) => {
+        if (mongoose.connection.readyState === 1) return resolve();
+        mongoose.connection.once('connected', resolve);
+      });
     }
 
     const secret = process.env.JWT_SECRET || 'agricola_super_secret_jwt_key_development_2026';
