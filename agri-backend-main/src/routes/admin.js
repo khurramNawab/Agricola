@@ -2223,13 +2223,37 @@ router.post('/orders/:id/clone', async (req, res) => {
       await clonedOrder.populate('warehouse', 'code name address shiprocketPickupNickname');
     }
 
-    // Automatically book fresh shipment on Shiprocket (generates brand new AWB & Label)
+    // Book a fresh shipment immediately — the whole purpose of a clone is to
+    // generate a new AWB and label for the replacement order. We call createShipment
+    // directly (bypassing the AUTO_CREATE_SHIPMENT env flag that guards regular orders)
+    // because clone is an explicit admin action that should always produce a shipment.
     const shipping = require('../utils/shipping');
-    if (shipping.isConfigured() && !clonedOrder.awaitingWarehouseAssignment) {
+    if (shipping.isConfigured() && !clonedOrder.awaitingWarehouseAssignment && !clonedOrder.shipping?.trackingNumber) {
       try {
-        await shipping.autoCreateShipment(clonedOrder);
+        const resolvedProvider = shipping.providerOfOrder(clonedOrder) || shipping.providerName();
+        const shipment = await shipping.createShipment(clonedOrder, {
+          provider: resolvedProvider,
+          warehouse: clonedOrder.warehouse || null
+        });
+        shipping.applyShipment(clonedOrder, shipment);
+        clonedOrder.status = 'processing';
+        clonedOrder.awaitingWarehouseAssignment = false;
+        clonedOrder.timeline.push({
+          status: 'shipment_created',
+          message: `Replacement shipment booked with ${shipment.carrier}. AWB: ${shipment.awbNumber}`,
+          timestamp: new Date()
+        });
+        await clonedOrder.save();
       } catch (shipErr) {
-        console.error(`Shipment auto-create failed for cloned order ${clonedOrder.orderId}:`, shipErr.message);
+        console.error(`Shipment booking failed for cloned order ${clonedOrder.orderId}:`, shipErr.message);
+        try {
+          clonedOrder.timeline.push({
+            status: 'shipment_failed',
+            message: `Shipment booking failed: ${shipErr.message}`.slice(0, 500),
+            timestamp: new Date()
+          });
+          await clonedOrder.save();
+        } catch (_) {}
       }
     }
 

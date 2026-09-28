@@ -151,15 +151,29 @@ const buildOrderPayload = (order, warehouse = null) => {
     billing_phone: digits10(addr.phone),
     shipping_is_billing: true,
 
-    order_items: (order.items || []).map((item) => {
-      const product = item.product && typeof item.product === 'object' ? item.product : null;
-      return {
-        name: [item.name, item.weight].filter(Boolean).join(' ').slice(0, 250) || 'Product',
-        sku: product?.productId || String(product?._id || item.product || item.name),
-        units: item.quantity,
-        selling_price: Math.round(item.price ?? (item.subtotal / Math.max(1, item.quantity)))
-      };
-    }),
+    order_items: (() => {
+      const itemsMap = new Map();
+      for (const item of (order.items || [])) {
+        const product = item.product && typeof item.product === 'object' ? item.product : null;
+        const sku = String(product?.productId || product?._id || item.product || item.name || 'SKU');
+        const name = [item.name, item.weight].filter(Boolean).join(' ').slice(0, 250) || 'Product';
+        const units = Number(item.quantity) || 1;
+        const price = Math.round(item.price ?? (item.subtotal / Math.max(1, units)));
+
+        if (itemsMap.has(sku)) {
+          const existing = itemsMap.get(sku);
+          existing.units += units;
+        } else {
+          itemsMap.set(sku, {
+            name,
+            sku,
+            units,
+            selling_price: price
+          });
+        }
+      }
+      return Array.from(itemsMap.values());
+    })(),
 
     payment_method: isCOD ? 'COD' : 'Prepaid',
     sub_total: Math.max(1, Math.round(order.pricing.subtotal - (order.pricing.discount || 0))),
