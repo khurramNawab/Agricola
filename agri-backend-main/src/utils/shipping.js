@@ -176,7 +176,11 @@ module.exports = {
   autoCreateShipment: async (order) => {
     try {
       if (process.env.AUTO_CREATE_SHIPMENT !== 'true') return null;
-      if (process.env.ENABLE_MULTI_WAREHOUSE === 'true' && order.awaitingWarehouseAssignment) return null;
+      // Always respect the manual-assignment gate regardless of ENABLE_MULTI_WAREHOUSE.
+      // All new orders default awaitingWarehouseAssignment=true (see Order schema), so
+      // shipments are only auto-booked after admin explicitly assigns a warehouse (which
+      // clears this flag via the warehouse-assignment route).
+      if (order.awaitingWarehouseAssignment) return null;
       const client = clientFor(providerOfOrder(order));
       if (!client.isConfigured()) return null;
       if (order.shipping?.trackingNumber) return null; // already shipped
@@ -190,6 +194,9 @@ module.exports = {
       const shipment = await client.createShipment(order, { provider: providerOfOrder(order), warehouse: order.warehouse });
       module.exports.applyShipment(order, shipment);
       order.status = 'processing';
+      // Clear the awaiting flag so the admin UI doesn't show contradictory
+      // "Awaiting Allocation" next to a live tracking number.
+      order.awaitingWarehouseAssignment = false;
       order.timeline.push({
         status: 'shipment_created',
         message: `Shipment auto-created with ${shipment.carrier}. AWB: ${shipment.awbNumber}`,
