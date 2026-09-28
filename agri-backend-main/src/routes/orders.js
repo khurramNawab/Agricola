@@ -548,6 +548,10 @@ const cancelOrder = async (req, res) => {
     }
 
     order.status = 'cancelled';
+    if (order.paymentStatus === 'pending') {
+      order.paymentStatus = 'failed';
+      order.paymentDetails = { ...(order.paymentDetails || {}), failureReason: reason ? `Cancelled by customer: ${reason}` : 'Cancelled by customer' };
+    }
     order.timeline.push({
       status: 'cancelled',
       message: reason ? `Order cancelled by customer. Reason: ${reason}` : 'Order cancelled by customer',
@@ -820,6 +824,15 @@ router.patch('/:id/status', authenticate, requireAdmin, async (req, res) => {
       await restoreOrderStock(order);
     }
     order.status = status;
+    if (status === 'cancelled' && order.paymentStatus === 'pending') {
+      order.paymentStatus = 'failed';
+      order.paymentDetails = { ...(order.paymentDetails || {}), failureReason: message || 'Order cancelled' };
+    } else if (status === 'delivered' && order.paymentMethod === 'cod' && order.paymentStatus === 'pending') {
+      order.paymentStatus = 'paid';
+      order.paymentDetails = { ...(order.paymentDetails || {}), paymentDate: new Date() };
+    } else if (status === 'refunded') {
+      order.paymentStatus = 'refunded';
+    }
     if (message) order.notes.admin = message;
     if (trackingNumber) order.shipping.trackingNumber = trackingNumber;
     if (carrier) order.shipping.carrier = carrier;

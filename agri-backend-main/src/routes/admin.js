@@ -2344,6 +2344,18 @@ router.put('/orders/:id/status', [
     }
 
     order.status = newStatus;
+
+    // Sync paymentStatus with order status
+    if (newStatus === 'cancelled' && order.paymentStatus === 'pending') {
+      order.paymentStatus = 'failed';
+      order.paymentDetails = { ...(order.paymentDetails || {}), failureReason: req.body.note || 'Order cancelled by admin' };
+    } else if (newStatus === 'delivered' && order.paymentMethod === 'cod' && order.paymentStatus === 'pending') {
+      order.paymentStatus = 'paid';
+      order.paymentDetails = { ...(order.paymentDetails || {}), paymentDate: new Date() };
+    } else if (newStatus === 'refunded') {
+      order.paymentStatus = 'refunded';
+    }
+
     if (req.body.note) {
       order.notes = { ...(order.notes || {}), admin: req.body.note };
     }
