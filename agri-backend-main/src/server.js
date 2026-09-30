@@ -1,10 +1,17 @@
 const dns = require('dns');
 try {
   dns.setDefaultResultOrder('ipv4first');
-  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
 } catch (e) {
   // ignore if restricted
 }
+
+// Prevent unhandled async rejections and exceptions from crashing the server
+process.on('uncaughtException', (err) => {
+  console.error('🔥 [FATAL] Uncaught Exception:', err?.stack || err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️ [WARN] Unhandled Promise Rejection at:', promise, 'reason:', reason?.stack || reason);
+});
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -199,30 +206,49 @@ app.use('/api/v1/subscribers', subscriberRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-// Database connection
-const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      family: 4,
-      serverSelectionTimeoutMS: 20000,
-      socketTimeoutMS: 45000,
-      maxPoolSize: 50,
-      minPoolSize: 5,
-    });
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+// Database connection with auto-retry and connection pooling resilience
+const connectDB = async (retries = 10, delayMs = 3000) => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const conn = await mongoose.connect(process.env.MONGODB_URI, {
+        family: 4,
+        serverSelectionTimeoutMS: 15000,
+        socketTimeoutMS: 45000,
+        connectTimeoutMS: 15000,
+        heartbeatFrequencyMS: 10000,
+        maxPoolSize: 25,
+        minPoolSize: 2,
+        retryWrites: true,
+        w: 'majority',
+        autoIndex: process.env.NODE_ENV !== 'production'
+      });
+      console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
 
-    mongoose.connection.on('error', (err) => {
-      console.error('MongoDB runtime error:', err.message);
-    });
-    mongoose.connection.on('disconnected', () => {
-      console.warn('MongoDB disconnected. Reconnecting automatically...');
-    });
-    mongoose.connection.on('reconnected', () => {
-      console.log('MongoDB reconnected successfully.');
-    });
-  } catch (error) {
-    console.error('Database connection failed:', error.message);
-    process.exit(1);
+      mongoose.connection.on('error', (err) => {
+        console.error('⚠️ MongoDB runtime error:', err?.message || err);
+      });
+      mongoose.connection.on('disconnected', () => {
+        console.warn('⚠️ MongoDB disconnected. Mongoose will auto-reconnect...');
+      });
+      mongoose.connection.on('reconnected', () => {
+        console.log('✅ MongoDB reconnected successfully.');
+      });
+      return conn;
+    } catch (error) {
+      console.error(`❌ MongoDB connection attempt ${attempt}/${retries} failed:`, error.message);
+      if (attempt < retries) {
+        console.log(`Retrying MongoDB connection in ${delayMs / 1000}s...`);
+        await new Promise((res) => setTimeout(res, delayMs));
+      } else {
+        console.error('❌ FATAL: Database connection failed after maximum retries.');
+        if (process.env.NODE_ENV === 'production') {
+          // In production, keep retrying in background rather than hard crashing
+          setTimeout(() => connectDB(5, 5000), 5000);
+        } else {
+          process.exit(1);
+        }
+      }
+    }
   }
 };
 

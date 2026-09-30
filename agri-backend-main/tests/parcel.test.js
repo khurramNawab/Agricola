@@ -111,8 +111,8 @@ describe('parcelDimsCm', () => {
     // The bug this replaces: 3 dimensionless pouches booked as a 20x20x30 tower, i.e.
     // 2.4kg of volumetric weight against a parcel that weighs 0.6kg.
     const dimensionless = { weight: { unit: 'kg' }, sizes: ['200g'] };
-    expect(parcelDimsCm([{ quantity: 1, product: dimensionless }])).toEqual({ length: 20, width: 20, height: 10 });
-    expect(parcelDimsCm([{ quantity: 3, product: dimensionless }])).toEqual({ length: 20, width: 20, height: 10 });
+    expect(parcelDimsCm([{ quantity: 1, product: dimensionless }])).toEqual({ length: 15, width: 10, height: 4 });
+    expect(parcelDimsCm([{ quantity: 3, product: dimensionless }])).toEqual({ length: 15, width: 10, height: 4 });
   });
 
   it('ignores the default when at least one line has real dimensions', () => {
@@ -121,17 +121,17 @@ describe('parcelDimsCm', () => {
   });
 
   it('falls back to the default box for an empty parcel', () => {
-    expect(parcelDimsCm([])).toEqual({ length: 20, width: 20, height: 10 });
+    expect(parcelDimsCm([])).toEqual({ length: 15, width: 10, height: 4 });
   });
 });
 
 describe('defaultDimsCm', () => {
   it('is env-tunable, since volumetric weight is billed off it', () => {
-    expect(defaultDimsCm()).toEqual({ length: 20, width: 20, height: 10 });
+    expect(defaultDimsCm()).toEqual({ length: 15, width: 10, height: 4 });
     process.env.PARCEL_DEFAULT_LENGTH_CM = '25';
     process.env.PARCEL_DEFAULT_HEIGHT_CM = '4';
     try {
-      expect(defaultDimsCm()).toEqual({ length: 25, width: 20, height: 4 });
+      expect(defaultDimsCm()).toEqual({ length: 25, width: 10, height: 4 });
     } finally {
       delete process.env.PARCEL_DEFAULT_LENGTH_CM;
       delete process.env.PARCEL_DEFAULT_HEIGHT_CM;

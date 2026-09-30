@@ -62,9 +62,9 @@ const totalWeightKg = (lines = []) =>
  * these, so they are env-tunable without a deploy.
  */
 const defaultDimsCm = () => ({
-  length: parseFloat(process.env.PARCEL_DEFAULT_LENGTH_CM) || 20,
-  width: parseFloat(process.env.PARCEL_DEFAULT_WIDTH_CM) || 20,
-  height: parseFloat(process.env.PARCEL_DEFAULT_HEIGHT_CM) || 10
+  length: parseFloat(process.env.PARCEL_DEFAULT_LENGTH_CM) || 15,
+  width: parseFloat(process.env.PARCEL_DEFAULT_WIDTH_CM) || 10,
+  height: parseFloat(process.env.PARCEL_DEFAULT_HEIGHT_CM) || 4
 });
 
 const toCm = (value, unit) => {
