@@ -63,8 +63,8 @@ const totalWeightKg = (lines = []) =>
  */
 const defaultDimsCm = () => ({
   length: parseFloat(process.env.PARCEL_DEFAULT_LENGTH_CM) || 15,
-  width: parseFloat(process.env.PARCEL_DEFAULT_WIDTH_CM) || 10,
-  height: parseFloat(process.env.PARCEL_DEFAULT_HEIGHT_CM) || 4
+  width: parseFloat(process.env.PARCEL_DEFAULT_WIDTH_CM) || 6,
+  height: parseFloat(process.env.PARCEL_DEFAULT_HEIGHT_CM) || 25
 });
 
 const toCm = (value, unit) => {
