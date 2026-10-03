@@ -39,6 +39,12 @@ const toProduct = (product) => {
     inStock: (p.stock || 0) > 0 && p.status === 'active',
     // isOrganic defaults to true for existing products that don't have the field set yet.
     isOrganic: p.isOrganic !== false,
+    dimensions: p.dimensions ? {
+      length: p.dimensions.length !== undefined && p.dimensions.length !== null ? Number(p.dimensions.length) : null,
+      width: p.dimensions.width !== undefined && p.dimensions.width !== null ? Number(p.dimensions.width) : null,
+      height: p.dimensions.height !== undefined && p.dimensions.height !== null ? Number(p.dimensions.height) : null,
+      unit: p.dimensions.unit || 'cm'
+    } : null,
     category: p.category && typeof p.category === 'object'
       ? { id: String(p.category._id), name: p.category.name, slug: p.category.slug }
       : (p.category ? String(p.category) : null)

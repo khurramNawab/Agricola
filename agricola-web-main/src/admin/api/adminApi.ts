@@ -204,6 +204,13 @@ export interface AdminProduct {
   featured: boolean;
   /** Whether this product is organic — defaults to true for existing products */
   isOrganic: boolean;
+  /** Shipping dimensions for Shiprocket / Courier parcel calculation */
+  dimensions?: {
+    length?: number | null;
+    width?: number | null;
+    height?: number | null;
+    unit?: 'cm' | 'inch';
+  } | null;
   shortDescription: string;
   about: string;
   usageInstructions: string;
@@ -250,6 +257,13 @@ export interface ProductPayload {
   featured?: boolean;
   /** Whether the product is organic. Omitting falls back to schema default (true). */
   isOrganic?: boolean;
+  /** Custom parcel shipping dimensions for Shiprocket */
+  dimensions?: {
+    length?: number | null;
+    width?: number | null;
+    height?: number | null;
+    unit?: 'cm' | 'inch';
+  } | null;
 }
 
 export async function getProducts(
