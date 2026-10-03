@@ -156,3 +156,70 @@ describe('Best seller selection: admin featured flag drives /products/featured',
     expect(await isInFeatured()).toBe(true);
   });
 });
+
+describe('Organic & Dimensions Management via Admin Panel', () => {
+  let organicId;
+  let nonOrganicId;
+
+  it('creates an organic product with custom parcel dimensions', async () => {
+    const res = await request(app)
+      .post('/api/v1/admin/products')
+      .set(auth(adminToken))
+      .send({
+        name: 'Organic Mithila Makhana 250g',
+        category: categoryId,
+        sellingPrice: 349,
+        stock: 100,
+        isOrganic: true,
+        dimensions: { length: 15, width: 6, height: 25, unit: 'cm' }
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.isOrganic).toBe(true);
+    expect(res.body.data.dimensions).toEqual({ length: 15, width: 6, height: 25, unit: 'cm' });
+    organicId = res.body.data.id;
+  });
+
+  it('updates product to non-organic (isOrganic: false) and updates dimensions', async () => {
+    const res = await request(app)
+      .put(`/api/v1/admin/products/${organicId}`)
+      .set(auth(adminToken))
+      .send({
+        isOrganic: false,
+        dimensions: { length: 20, width: 10, height: 5, unit: 'cm' }
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.isOrganic).toBe(false);
+    expect(res.body.data.dimensions).toEqual({ length: 20, width: 10, height: 5, unit: 'cm' });
+  });
+
+  it('creates a non-organic product and resets it back to organic', async () => {
+    const res = await request(app)
+      .post('/api/v1/admin/products')
+      .set(auth(adminToken))
+      .send({
+        name: 'Conventional Mustard Seeds 500g',
+        category: categoryId,
+        sellingPrice: 120,
+        stock: 40,
+        isOrganic: false,
+        dimensions: { length: 12, width: 8, height: 4, unit: 'cm' }
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.isOrganic).toBe(false);
+    expect(res.body.data.dimensions).toEqual({ length: 12, width: 8, height: 4, unit: 'cm' });
+    nonOrganicId = res.body.data.id;
+
+    // Update back to organic
+    const updateRes = await request(app)
+      .put(`/api/v1/admin/products/${nonOrganicId}`)
+      .set(auth(adminToken))
+      .send({ isOrganic: true });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.data.isOrganic).toBe(true);
+    expect(updateRes.body.data.dimensions).toEqual({ length: 12, width: 8, height: 4, unit: 'cm' });
+  });
+});

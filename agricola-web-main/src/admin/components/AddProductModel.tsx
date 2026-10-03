@@ -39,6 +39,10 @@ const emptyForm = () => ({
   stock: '',
   featured: false,
   isOrganic: true,
+  dimensionLength: '',
+  dimensionWidth: '',
+  dimensionHeight: '',
+  dimensionUnit: 'cm' as 'cm' | 'inch',
   shortDescription: '',
   about: '',
   usageInstructions: '',
@@ -115,6 +119,10 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
         stock: String(initial.stock),
         featured: !!initial.featured,
         isOrganic: initial.isOrganic !== false,
+        dimensionLength: initial.dimensions?.length != null ? String(initial.dimensions.length) : '',
+        dimensionWidth: initial.dimensions?.width != null ? String(initial.dimensions.width) : '',
+        dimensionHeight: initial.dimensions?.height != null ? String(initial.dimensions.height) : '',
+        dimensionUnit: (initial.dimensions?.unit || 'cm') as 'cm' | 'inch',
         shortDescription: initial.shortDescription || '',
         about: initial.about || '',
         usageInstructions: initial.usageInstructions || '',
@@ -186,6 +194,13 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
         }))
         .filter((v) => v.size.length > 0);
 
+      const dimL = formData.dimensionLength.trim() ? Number(formData.dimensionLength) : undefined;
+      const dimW = formData.dimensionWidth.trim() ? Number(formData.dimensionWidth) : undefined;
+      const dimH = formData.dimensionHeight.trim() ? Number(formData.dimensionHeight) : undefined;
+      const dimensions = (dimL !== undefined || dimW !== undefined || dimH !== undefined)
+        ? { length: dimL ?? null, width: dimW ?? null, height: dimH ?? null, unit: formData.dimensionUnit }
+        : null;
+
       await onSubmit({
         name: formData.name.trim(),
         category: formData.category,
@@ -194,6 +209,7 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
         stock: formData.stock ? Number(formData.stock) : undefined,
         featured: formData.featured,
         isOrganic: formData.isOrganic,
+        dimensions,
         variants: Object.fromEntries(validVariants.map((v) => [v.size, true])),
         variantStocks: validVariants,
         shortDescription: formData.shortDescription,
@@ -578,6 +594,113 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* Shipping Dimensions & Logistics for Shiprocket */}
+              <div className="rounded-xl border border-blue-200/80 p-4 bg-blue-50/40 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                  <label className="block text-sm font-bold text-gray-800 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-blue-600 text-lg">local_shipping</span>
+                    <span>Parcel Dimensions (Used by Shiprocket)</span>
+                  </label>
+                  <span className="text-[11px] font-medium text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-md">
+                    Accurate Freight Calculation
+                  </span>
+                </div>
+
+                <p className="text-xs text-gray-600">
+                  Set packaging dimensions for this product. Default if left empty: 15 × 6 × 25 cm (0.45 kg).
+                </p>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      Length
+                    </label>
+                    <input
+                      type="text"
+                      {...zeroSafeInputProps}
+                      placeholder="15"
+                      value={formData.dimensionLength}
+                      onChange={(e) => {
+                        const val = sanitizeZeroSafeNumber(e.target.value, true);
+                        setFormData((prev) => ({ ...prev, dimensionLength: val }));
+                      }}
+                      className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-right font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      Width
+                    </label>
+                    <input
+                      type="text"
+                      {...zeroSafeInputProps}
+                      placeholder="6"
+                      value={formData.dimensionWidth}
+                      onChange={(e) => {
+                        const val = sanitizeZeroSafeNumber(e.target.value, true);
+                        setFormData((prev) => ({ ...prev, dimensionWidth: val }));
+                      }}
+                      className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-right font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      Height
+                    </label>
+                    <input
+                      type="text"
+                      {...zeroSafeInputProps}
+                      placeholder="25"
+                      value={formData.dimensionHeight}
+                      onChange={(e) => {
+                        const val = sanitizeZeroSafeNumber(e.target.value, true);
+                        setFormData((prev) => ({ ...prev, dimensionHeight: val }));
+                      }}
+                      className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-right font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1">
+                      Unit
+                    </label>
+                    <select
+                      value={formData.dimensionUnit}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, dimensionUnit: e.target.value as 'cm' | 'inch' }))}
+                      className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-lg font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      <option value="cm">cm</option>
+                      <option value="inch">inch</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Live Volumetric Weight calculation helper */}
+                {(() => {
+                  const l = Number(formData.dimensionLength) || 15;
+                  const w = Number(formData.dimensionWidth) || 6;
+                  const h = Number(formData.dimensionHeight) || 25;
+                  const lCm = formData.dimensionUnit === 'inch' ? l * 2.54 : l;
+                  const wCm = formData.dimensionUnit === 'inch' ? w * 2.54 : w;
+                  const hCm = formData.dimensionUnit === 'inch' ? h * 2.54 : h;
+                  const volKg = Math.round(((lCm * wCm * hCm) / 5000) * 100) / 100;
+                  const isUnderBaseSlab = volKg <= 0.5;
+
+                  return (
+                    <div className="flex items-center justify-between text-xs bg-white/80 p-2 rounded-lg border border-blue-100">
+                      <span className="text-gray-600">
+                        Volumetric Weight: <strong className="text-gray-900">{volKg} kg</strong>
+                      </span>
+                      <span className={`font-semibold ${isUnderBaseSlab ? 'text-green-700' : 'text-amber-700'}`}>
+                        {isUnderBaseSlab ? '✓ Lowest 0.5kg Base Rate Slab' : `⚠️ Billed as ${Math.ceil(volKg * 2) / 2}kg Slab`}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div>

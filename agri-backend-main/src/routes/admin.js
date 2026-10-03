@@ -904,6 +904,12 @@ const toAdminProduct = (p) => ({
   images: (p.images || []).map((i) => ({ url: i.url, publicId: i.publicId || null })),
   featured: !!p.featured,
   isOrganic: p.isOrganic !== false, // default true for existing products without the field
+  dimensions: p.dimensions ? {
+    length: p.dimensions.length !== undefined && p.dimensions.length !== null ? Number(p.dimensions.length) : null,
+    width: p.dimensions.width !== undefined && p.dimensions.width !== null ? Number(p.dimensions.width) : null,
+    height: p.dimensions.height !== undefined && p.dimensions.height !== null ? Number(p.dimensions.height) : null,
+    unit: p.dimensions.unit || 'cm'
+  } : null,
   shortDescription: p.description || '',
   about: p.about || '',
   usageInstructions: p.usageInstructions || '',
@@ -1061,6 +1067,17 @@ const mapProductPayload = async (body) => {
   if (body.newlyAdded !== undefined) mapped.newlyAdded = body.newlyAdded;
   // isOrganic: pass through as boolean; undefined = keep schema default (true)
   if (body.isOrganic !== undefined) mapped.isOrganic = !!body.isOrganic;
+  if (body.dimensions !== undefined) {
+    if (body.dimensions === null || typeof body.dimensions !== 'object') {
+      mapped.dimensions = undefined;
+    } else {
+      const l = body.dimensions.length !== undefined && body.dimensions.length !== null && body.dimensions.length !== '' ? Math.max(0, Number(body.dimensions.length)) : null;
+      const w = body.dimensions.width !== undefined && body.dimensions.width !== null && body.dimensions.width !== '' ? Math.max(0, Number(body.dimensions.width)) : null;
+      const h = body.dimensions.height !== undefined && body.dimensions.height !== null && body.dimensions.height !== '' ? Math.max(0, Number(body.dimensions.height)) : null;
+      const unit = body.dimensions.unit === 'inch' ? 'inch' : 'cm';
+      mapped.dimensions = { length: l, width: w, height: h, unit };
+    }
+  }
   return mapped;
 };
 
