@@ -67,7 +67,22 @@ describe('shiprocket.measureParcel', () => {
 
   it('falls back to defaults when a product has no weight/dimensions', () => {
     const p = shiprocket.measureParcel([{ quantity: 1, product: {} }]);
-    expect(p).toEqual({ weight: 0.5, length: 20, breadth: 20, height: 10 });
+    expect(p).toEqual({ weight: 0.5, length: 15, breadth: 6, height: 25 });
+  });
+
+  it('correctly uses custom product dimensions configured from the admin panel', () => {
+    const customProduct = {
+      name: 'Special Makhana Jar',
+      dimensions: { length: 18, width: 8, height: 20, unit: 'cm' },
+      sizes: ['250g']
+    };
+    const p = shiprocket.measureParcel([{ quantity: 2, product: customProduct, weight: '250g' }]);
+    expect(p).toEqual({
+      weight: 0.5,   // 2 x 250g = 500g
+      length: 18,
+      breadth: 8,
+      height: 40     // 20cm x 2 units stacked
+    });
   });
 });
 
