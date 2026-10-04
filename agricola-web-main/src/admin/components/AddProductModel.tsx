@@ -721,23 +721,6 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
               </div>
 
               <div>
-                <label className="flex cursor-pointer items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.isOrganic}
-                    onChange={(e) => setFormData({ ...formData, isOrganic: e.target.checked })}
-                    className="w-4 h-4 rounded border-gray-300"
-                  />
-                  <span className="text-sm font-medium text-gray-700">
-                    Organic Product{' '}
-                    <span className="font-normal text-gray-400">
-                      (shows “🌿 Organic” badge; uncheck for non-organic items)
-                    </span>
-                  </span>
-                </label>
-              </div>
-
-              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Short Description
                 </label>

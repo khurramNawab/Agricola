@@ -445,16 +445,10 @@ export default function ProductDetail() {
           <div className="lg:col-span-6 flex flex-col gap-5">
             {/* Badges & Category Header */}
             <div className="flex flex-wrap items-center gap-2">
-              {product.isOrganic !== false ? (
-                <span className="bg-[#c9ecc4] text-[#1e3a1f] text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs border border-[#84b817]/30">
-                  <span className="text-xs">🌿</span>
-                  <span>100% Organic</span>
-                </span>
-              ) : (
-                <span className="bg-gray-100 text-gray-600 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1 border border-gray-200">
-                  <span>Non-Organic</span>
-                </span>
-              )}
+              <span className="bg-[#c9ecc4] text-[#1e3a1f] text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs border border-[#84b817]/30">
+                <span className="text-xs">🌿</span>
+                <span>100% Organic</span>
+              </span>
               <span className="bg-[#ffdcc3] text-[#904d00] text-[11px] font-black uppercase tracking-wider px-3 py-1 rounded-full flex items-center gap-1 shadow-2xs">
                 <Star size={12} className="fill-current" />
                 <span>BEST SELLER</span>

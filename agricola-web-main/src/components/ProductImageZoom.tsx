@@ -29,7 +29,6 @@ export const ProductImageZoom: React.FC<ProductImageZoomProps> = ({
   activeImageIndex,
   onSelectImage,
   productTitle,
-  isOrganic = true,
   isInWishlist = false,
   onToggleWishlist,
 }) => {
@@ -189,17 +188,10 @@ export const ProductImageZoom: React.FC<ProductImageZoomProps> = ({
         {/* Badges Floating Over Image (Top-Left) - Only when not video */}
         {!isVideoActive && (
           <div className="absolute top-4 left-4 flex flex-col gap-2 pointer-events-none z-10">
-            {isOrganic !== false ? (
-              <div className="bg-white/95 backdrop-blur-md text-[#486800] text-[11px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full shadow-md flex items-center gap-1.5 border border-[#84b817]/20">
-                <span className="material-symbols-outlined text-sm text-[#486800]">verified</span>
-                <span>100% Pure &amp; Natural</span>
-              </div>
-            ) : (
-              <div className="bg-white/95 backdrop-blur-md text-gray-600 text-[11px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full shadow-md flex items-center gap-1.5 border border-gray-200">
-                <span className="material-symbols-outlined text-sm text-gray-500">eco</span>
-                <span>Naturally Sourced • Non-Organic</span>
-              </div>
-            )}
+            <div className="bg-white/95 backdrop-blur-md text-[#486800] text-[11px] font-extrabold uppercase tracking-wider px-3.5 py-1.5 rounded-full shadow-md flex items-center gap-1.5 border border-[#84b817]/20">
+              <span className="material-symbols-outlined text-sm text-[#486800]">verified</span>
+              <span>100% Pure &amp; Organic</span>
+            </div>
             <div className="bg-[#1e3a1f] text-white text-[11px] font-bold px-3.5 py-1.5 rounded-full shadow-md flex items-center gap-1.5">
               <span className="material-symbols-outlined text-sm text-[#84b817]">nature_people</span>
               <span>Direct from Partner Farm Co-op</span>

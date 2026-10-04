@@ -323,15 +323,9 @@ export default function Products() {
                         </span>
                       </td>
                       <td className="px-6 py-3.5 text-center">
-                        {product.isOrganic ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#c9ecc4] text-[#486800] font-bold text-[10px]">
-                            🌿 Organic
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-bold text-[10px]">
-                            Non-Organic
-                          </span>
-                        )}
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#c9ecc4] text-[#486800] font-bold text-[10px]">
+                          🌿 100% Organic
+                        </span>
                       </td>
                       <td className="px-6 py-3.5 text-center">
                         <button
