@@ -200,8 +200,68 @@ const Hero: React.FC = () => {
     return () => clearInterval(id);
   }, [slides.length, hasVideo]);
 
+  const getSlideMetadata = (slide?: HeroSlide) => {
+    if (!slide) {
+      return {
+        badge: "Mithila GI Tagged 6A",
+        origin: "Single Origin • Mithila, Bihar",
+        price: "₹380",
+        mrp: "MRP ₹450",
+        batch: "Batch #PN-MK-2025-04"
+      };
+    }
+
+    const t = (slide.title || "").toLowerCase();
+    const img = (slide.image || "").toLowerCase();
+
+    if (t.includes("herbal") || t.includes("infusion") || img.includes("herbal")) {
+      return {
+        badge: "Artisanal Herbal Blend",
+        origin: "Pure Herbal • Partner Estate",
+        price: "₹290",
+        mrp: "MRP ₹350",
+        batch: "Batch #HB-BLN-2025-01"
+      };
+    }
+    if (t.includes("tea") || t.includes("kangra") || img.includes("tea")) {
+      return {
+        badge: "Kangra Estate Single Origin",
+        origin: "Himalayan Harvest • Himachal Pradesh",
+        price: "₹290",
+        mrp: "MRP ₹360",
+        batch: "Batch #HP-TEA-2025-02"
+      };
+    }
+    if (t.includes("roasted") || t.includes("crisp") || img.includes("roasted")) {
+      return {
+        badge: "Cast-Iron Roasted Crisp",
+        origin: "Vedic Roastery • Mithila, Bihar",
+        price: "₹290",
+        mrp: "MRP ₹360",
+        batch: "Batch #PN-RST-2025-01"
+      };
+    }
+    if (t.includes("wetland") || t.includes("heritage") || t.includes("pop")) {
+      return {
+        badge: "Wetland Organic Harvest",
+        origin: "Native Cooperatives • Bihar",
+        price: "₹350",
+        mrp: "MRP ₹420",
+        batch: "Batch #BH-ORG-2025-03"
+      };
+    }
+    return {
+      badge: "Mithila GI Tagged 6A",
+      origin: "Single Origin • Mithila, Bihar",
+      price: "₹380",
+      mrp: "MRP ₹450",
+      batch: "Batch #PN-MK-2025-04"
+    };
+  };
+
   const active = (hasVideo ? slides[0] : slides[heroIndex]) || DEFAULT_SLIDES[0];
   const embedUrl = hasVideo ? getYouTubeEmbedUrl(videoModule?.videoUrl || "") : null;
+  const meta = getSlideMetadata(active);
 
   const handleCopyCoupon = (code: string) => {
     if (navigator.clipboard) {
@@ -492,15 +552,7 @@ const Hero: React.FC = () => {
 
                   {/* Top Badge */}
                   <div className="absolute top-3 left-3 bg-[#f78e27] text-white text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider shadow-sm z-20">
-                    {heroIndex === 0
-                      ? "Mithila GI Tagged 6A"
-                      : heroIndex === 1
-                      ? "Cast-Iron Roasted Crisp"
-                      : heroIndex === 2
-                      ? "Wetland Organic Harvest"
-                      : heroIndex === 3
-                      ? "Kangra Estate Single Origin"
-                      : "Artisanal Herbal Blend"}
+                    {meta.badge}
                   </div>
 
                   {/* Rating Badge */}
@@ -539,15 +591,7 @@ const Hero: React.FC = () => {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <span className="text-[11px] text-[#434936] font-semibold">
-                      {heroIndex === 0
-                        ? "Single Origin • Mithila, Bihar"
-                        : heroIndex === 1
-                        ? "Vedic Roastery • Mithila, Bihar"
-                        : heroIndex === 2
-                        ? "Native Cooperatives • Bihar"
-                        : heroIndex === 3
-                        ? "Himalayan Harvest • Himachal"
-                        : "Pure Herbal • Partner Estate"}
+                      {meta.origin}
                     </span>
                     <h3 className="text-lg font-bold text-[#1b1c1a] leading-snug mt-0.5">
                       {active.title || "Jumbo Phool Makhana (Raw Sun-Dried 6A)"}
@@ -555,41 +599,17 @@ const Hero: React.FC = () => {
                   </div>
                   <div className="text-right shrink-0">
                     <span className="text-lg font-extrabold text-[#1b1c1a]">
-                      {heroIndex === 0
-                        ? "₹380"
-                        : heroIndex === 1
-                        ? "₹290"
-                        : heroIndex === 2
-                        ? "₹350"
-                        : heroIndex === 3
-                        ? "₹320"
-                        : "₹290"}
+                      {meta.price}
                     </span>
                     <span className="block text-xs text-gray-400 line-through">
-                      {heroIndex === 0
-                        ? "MRP ₹450"
-                        : heroIndex === 1
-                        ? "MRP ₹360"
-                        : heroIndex === 2
-                        ? "MRP ₹420"
-                        : heroIndex === 3
-                        ? "MRP ₹390"
-                        : "MRP ₹350"}
+                      {meta.mrp}
                     </span>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
                   <span className="text-xs text-[#4e6c4c] font-bold bg-[#c9ecc4]/60 px-2.5 py-1 rounded-lg">
-                    {heroIndex === 0
-                      ? "Batch #PN-MK-2025-04"
-                      : heroIndex === 1
-                      ? "Batch #PN-RST-2025-01"
-                      : heroIndex === 2
-                      ? "Batch #BH-ORG-2025-03"
-                      : heroIndex === 3
-                      ? "Batch #HP-TEA-2025-02"
-                      : "Batch #HB-BLN-2025-01"}
+                    {meta.batch}
                   </span>
                   <button
                     onClick={() => handleCtaClick(active.ctaLink)}
