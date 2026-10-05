@@ -347,7 +347,7 @@ const Hero: React.FC = () => {
 
               <p
                 key={heroIndex}
-                className="text-sm sm:text-base lg:text-[16px] text-[#434936] max-w-xl leading-relaxed min-h-[42px] sm:min-h-[54px] transition-all duration-300 animate-fadeIn"
+                className="text-sm sm:text-base lg:text-[16px] text-[#434936] max-w-xl leading-relaxed min-h-[68px] sm:min-h-[76px] lg:min-h-[80px] flex items-start transition-all duration-300 animate-fadeIn"
               >
                 {active.description ||
                   "Hand-picked organic seeds, sun-dried Mithila jumbo makhana, and single-origin stone-ground spices directly from verified partner farms. No middlemen, zero synthetic polish."}
@@ -589,11 +589,11 @@ const Hero: React.FC = () => {
 
                 {/* Card Details */}
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <span className="text-[11px] text-[#434936] font-semibold">
+                  <div className="flex-1 min-w-0 pr-2">
+                    <span className="text-[11px] text-[#434936] font-semibold block truncate">
                       {meta.origin}
                     </span>
-                    <h3 className="text-lg font-bold text-[#1b1c1a] leading-snug mt-0.5">
+                    <h3 className="text-base sm:text-lg font-bold text-[#1b1c1a] leading-snug mt-0.5 min-h-[48px] sm:min-h-[52px] flex items-start line-clamp-2">
                       {active.title || "Jumbo Phool Makhana (Raw Sun-Dried 6A)"}
                     </h3>
                   </div>
