@@ -223,15 +223,15 @@ const Hero: React.FC = () => {
   return (
     <>
       {/* ── Hero Section ── */}
-      <section className="relative w-full overflow-hidden rounded-3xl bg-gradient-to-b from-[#f5f3f0] via-[#fbf9f6] to-[#fbf9f6] px-4 sm:px-6 lg:px-12 py-7 sm:py-10 lg:py-14 my-3 sm:my-4 shadow-[0_12px_30px_-8px_rgba(30,58,31,0.06)]">
+      <section className="relative w-full overflow-hidden rounded-3xl bg-gradient-to-b from-[#f5f3f0] via-[#fbf9f6] to-[#fbf9f6] px-4 sm:px-6 lg:px-10 pt-4 pb-6 sm:pt-6 sm:pb-8 lg:pt-7 lg:pb-9 mt-1 mb-3 sm:mt-1.5 sm:mb-4 shadow-[0_12px_30px_-8px_rgba(30,58,31,0.06)]">
         {/* Ambient organic green blur spots */}
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-[#486800]/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute top-1/2 -right-20 w-80 h-80 bg-[#84b817]/15 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
+        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-center">
           {/* ── Left Column: Text & CTAs (Clean brand presentation) ── */}
-          <div className="relative flex flex-col items-start gap-6 transition-all lg:col-span-7 p-2 sm:p-4">
-            <div className="relative z-10 flex flex-col items-start gap-6 w-full">
+          <div className="relative flex flex-col items-start gap-4 sm:gap-5 transition-all lg:col-span-7 p-1 sm:p-2">
+            <div className="relative z-10 flex flex-col items-start gap-4 sm:gap-5 w-full">
               {/* Festival or Provenance Badge with Dynamic Coupon Code Pill Beside It */}
               <div className="flex flex-wrap items-center gap-2.5">
                 {campaignData.isCustomCampaign && campaignData.festivalType ? (
@@ -280,21 +280,21 @@ const Hero: React.FC = () => {
                 )}
               </div>
 
-              <h1 className="text-3xl sm:text-4xl lg:text-[50px] font-extrabold text-[#1b1c1a] tracking-tight leading-[1.12] max-w-2xl">
+              <h1 className="text-3xl sm:text-4xl lg:text-[46px] font-extrabold text-[#1b1c1a] tracking-tight leading-[1.14] max-w-2xl">
                 Pure, Farm–Harvested Goodness. Delivered From{" "}
                 <span className="text-[#486800] italic">Soil to Soul</span>.
               </h1>
 
               <p
                 key={heroIndex}
-                className="text-sm sm:text-base lg:text-lg text-[#434936] max-w-xl leading-relaxed min-h-[50px] sm:min-h-[76px] transition-all duration-300 animate-fadeIn"
+                className="text-sm sm:text-base lg:text-[16px] text-[#434936] max-w-xl leading-relaxed min-h-[42px] sm:min-h-[54px] transition-all duration-300 animate-fadeIn"
               >
                 {active.description ||
                   "Hand-picked organic seeds, sun-dried Mithila jumbo makhana, and single-origin stone-ground spices directly from verified partner farms. No middlemen, zero synthetic polish."}
               </p>
 
               {/* CTAs */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full pt-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full pt-1 sm:pt-1.5">
                 <button
                   onClick={() => handleCtaClick(active.ctaLink)}
                   className="w-full sm:w-auto bg-[#84b817] text-white text-sm sm:text-base px-7 py-3.5 sm:px-8 sm:py-4 rounded-full font-bold shadow-[0_8px_20px_-4px_rgba(132,184,23,0.35)] hover:bg-[#486800] transition-all duration-200 flex items-center justify-center gap-2 group active:scale-95 cursor-pointer"
@@ -449,8 +449,8 @@ const Hero: React.FC = () => {
               </div>
             ) : (
               /* Photo Showcase (When Admin disables campaign/video -> "photo right side") */
-              <div className="relative bg-white/95 backdrop-blur-xl rounded-3xl p-5 shadow-[0_16px_36px_-10px_rgba(30,58,31,0.12)] border border-gray-100 transition-all duration-300">
-                <div className="relative w-full h-64 sm:h-72 rounded-2xl overflow-hidden bg-[#1a2217] mb-4 shadow-inner group">
+              <div className="relative bg-white/95 backdrop-blur-xl rounded-3xl p-4 sm:p-4.5 shadow-[0_16px_36px_-10px_rgba(30,58,31,0.12)] border border-gray-100 transition-all duration-300">
+                <div className="relative w-full h-56 sm:h-64 lg:h-68 rounded-2xl overflow-hidden bg-[#1a2217] mb-3 shadow-inner group">
                   <img
                     src={active.image || "/assets/makhana1.png"}
                     alt={active.title}

@@ -11,8 +11,8 @@ export const Landing = () => {
   return (
     <div id="webcrumbs" className="bg-[#fbf9f6] min-h-screen flex flex-col w-full max-w-full overflow-x-clip">
       {/* Top Harvest Announcement Pill */}
-      <div className="w-full flex items-center justify-center pt-3 pb-1 px-3 sm:px-4">
-        <div className="inline-flex items-center justify-center text-center gap-1.5 sm:gap-2 px-3.5 py-1.5 rounded-full bg-[#c9ecc4]/80 backdrop-blur-md text-[#2f4f2f] shadow-2xs text-[11px] sm:text-xs font-semibold border border-[#84b817]/25 max-w-full">
+      <div className="w-full flex items-center justify-center pt-1.5 pb-0.5 px-3 sm:px-4">
+        <div className="inline-flex items-center justify-center text-center gap-1.5 sm:gap-2 px-3 py-1 rounded-full bg-[#c9ecc4]/80 backdrop-blur-md text-[#2f4f2f] shadow-2xs text-[11px] sm:text-xs font-semibold border border-[#84b817]/25 max-w-full">
           <span className="w-2 h-2 rounded-full bg-[#84b817] animate-pulse shrink-0"></span>
           <span className="truncate sm:overflow-visible">
             Fresh Harvest: Mithila Jumbo Makhana &amp; Lakadong Turmeric
