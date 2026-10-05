@@ -1,9 +1,15 @@
 const dns = require('dns');
 dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
 
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const mongoose = require('mongoose');
 
-const uri = 'process.env.MONGODB_URI/agricola?appName=agricoladev';
+const uri = process.env.MONGODB_URI;
+if (!uri) {
+  console.error('❌ MONGODB_URI is not set in environment or .env file');
+  process.exit(1);
+}
 
 async function testConnection() {
   console.log('Connecting to MongoDB Atlas at agricoladev with Google DNS...');

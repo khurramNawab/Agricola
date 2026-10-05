@@ -13,7 +13,11 @@ const ProductWarehouseStock = require('../src/models/ProductWarehouseStock');
 const Coupon = require('../src/models/Coupon');
 const HeroCampaign = require('../src/models/HeroCampaign');
 
-const ATLAS_URI = 'process.env.MONGODB_URI/agricola?appName=agricoladev';
+const ATLAS_URI = process.env.MONGODB_URI;
+if (!ATLAS_URI) {
+  console.error('❌ MONGODB_URI is not set in environment or .env file');
+  process.exit(1);
+}
 
 async function sync() {
   console.log('Connecting to Live MongoDB Atlas...');

@@ -211,7 +211,168 @@ describe('shiprocket.createShipment', () => {
     delete process.env.SHIPROCKET_REQUEST_PICKUP;
     delete process.env.SHIPROCKET_GENERATE_LABEL;
   });
+
+  // =========================================================================
+  // AWB ASSIGNMENT: Warehouse assign → populate → createShipment flow
+  // Tests the exact path that assign-warehouse in admin.js uses.
+  // =========================================================================
+
+  it('populated product: createShipment uses real weight and dimensions (the fix)', async () => {
+    // After admin.js does: await order.populate('items.product', 'name productId weight dimensions')
+    const populatedOrder = makeOrder({
+      items: [
+        {
+          name: 'Kaju Katli 250g',
+          weight: '250g',
+          price: 480,
+          quantity: 3,
+          subtotal: 1440,
+          product: {
+            _id: 'abc123',
+            productId: 'PRD-KKT-250',
+            name: 'Kaju Katli',
+            weight: { value: 250, unit: 'g' },
+            dimensions: { length: 16, width: 9, height: 7, unit: 'cm' }
+          }
+        }
+      ]
+    });
+
+    // 1) Weight and dimensions must come from the populated product
+    const parcel = shiprocket.measureParcel(populatedOrder.items);
+    expect(parcel.weight).toBe(0.75);   // 3 × 250g
+    expect(parcel.length).toBe(16);
+    expect(parcel.breadth).toBe(9);
+    expect(parcel.height).toBe(21);     // 7cm × 3 stacked
+
+    // 2) buildOrderPayload must carry those into the Shiprocket schema
+    const payload = shiprocket.buildOrderPayload(populatedOrder);
+    expect(payload.weight).toBe(0.75);
+    expect(payload.length).toBe(16);
+    expect(payload.breadth).toBe(9);
+    expect(payload.height).toBe(21);
+    // SKU should be the real productId, not a random ObjectId
+    expect(payload.order_items[0].sku).toBe('PRD-KKT-250');
+
+    // 3) createShipment must yield a valid AWB
+    const shipment = await shiprocket.createShipment(populatedOrder);
+    expect(shipment.awbNumber).toMatch(/^MOCK\d{9}SR$/);
+    expect(shipment.provider).toBe('shiprocket');
+    expect(shipment.carrier).toBeTruthy();
+    expect(shipment.trackingUrl).toContain(shipment.awbNumber);
+    expect(shipment.labelUrl).toContain('.pdf');
+    expect(shipment.pickupScheduled).toBe(true);
+  });
+
+  it('unpopulated ObjectId product: falls back to defaults (pre-fix scenario)', async () => {
+    // This is what happened BEFORE the fix — product was a raw ObjectId string
+    const unpopulatedOrder = makeOrder({
+      items: [
+        {
+          name: 'Green Tea 100g',
+          weight: '100g',
+          price: 220,
+          quantity: 1,
+          subtotal: 220,
+          product: '507f1f77bcf86cd799439011'
+        }
+      ]
+    });
+
+    // Parcel falls back: weight from "100g" label, dims from env defaults
+    const parcel = shiprocket.measureParcel(unpopulatedOrder.items);
+    expect(parcel.weight).toBe(0.5);     // 100g = 0.1kg, but min is 0.5
+    expect(parcel.length).toBe(15);      // default
+    expect(parcel.breadth).toBe(6);      // default
+    expect(parcel.height).toBe(25);      // default (no product dims to stack)
+
+    // buildOrderPayload uses ObjectId string as SKU when product is not an object
+    const payload = shiprocket.buildOrderPayload(unpopulatedOrder);
+    expect(payload.order_items[0].sku).toBe('507f1f77bcf86cd799439011');
+    expect(payload.weight).toBe(0.5);
+
+    // AWB must still be assigned (mock mode) — shipment never crashes
+    const shipment = await shiprocket.createShipment(unpopulatedOrder);
+    expect(shipment.awbNumber).toMatch(/^MOCK\d{9}SR$/);
+    expect(shipment.provider).toBe('shiprocket');
+  });
+
+  it('applyShipment correctly stamps AWB and carrier on order after createShipment', async () => {
+    const shipping = require('../src/utils/shipping');
+    const order = makeOrder();
+    order.shipping = {};
+    order.pricing = { subtotal: 1000, shipping: 50, total: 1050, discount: 0, tax: 0 };
+
+    const shipment = await shiprocket.createShipment(order);
+    shipping.applyShipment(order, shipment);
+
+    // The order now has everything the admin dashboard needs
+    expect(order.shipping.trackingNumber).toMatch(/^MOCK\d{9}SR$/);
+    expect(order.shipping.carrier).toBeTruthy();
+    expect(order.shipping.provider).toBe('shiprocket');
+    expect(order.shipping.providerShipmentId).toBeTruthy();
+    expect(order.shipping.labelUrl).toContain('.pdf');
+    expect(order.shipping.trackingUrl).toContain(order.shipping.trackingNumber);
+    expect(order.shipping.method).toBe('standard');
+  });
+
+  it('multi-item order: stacks dimensions and sums weight from populated products', async () => {
+    const multiItemOrder = makeOrder({
+      items: [
+        {
+          name: 'Assam CTC Tea',
+          weight: '500g',
+          price: 450,
+          quantity: 2,
+          subtotal: 900,
+          product: {
+            _id: 'p1', productId: 'PRD-TEA-500',
+            weight: { value: 500, unit: 'g' },
+            dimensions: { length: 20, width: 12, height: 8, unit: 'cm' }
+          }
+        },
+        {
+          name: 'Honey 250g',
+          weight: '250g',
+          price: 350,
+          quantity: 1,
+          subtotal: 350,
+          product: {
+            _id: 'p2', productId: 'PRD-HON-250',
+            weight: { value: 250, unit: 'g' },
+            dimensions: { length: 10, width: 10, height: 12, unit: 'cm' }
+          }
+        }
+      ]
+    });
+
+    // Weight: 2×500g + 1×250g = 1250g = 1.25kg
+    const parcel = shiprocket.measureParcel(multiItemOrder.items);
+    expect(parcel.weight).toBe(1.25);
+    expect(parcel.length).toBe(20);     // max footprint
+    expect(parcel.breadth).toBe(12);    // max footprint
+    expect(parcel.height).toBe(28);     // 8×2 + 12×1 stacked
+
+    const payload = shiprocket.buildOrderPayload(multiItemOrder);
+    expect(payload.weight).toBe(1.25);
+    expect(payload.length).toBe(20);
+    expect(payload.height).toBe(28);
+    expect(payload.order_items).toHaveLength(2);
+    expect(payload.order_items.map(i => i.sku).sort()).toEqual(['PRD-HON-250', 'PRD-TEA-500']);
+
+    const shipment = await shiprocket.createShipment(multiItemOrder);
+    expect(shipment.awbNumber).toMatch(/^MOCK\d{9}SR$/);
+    expect(shipment.shippingCharge).toBeGreaterThan(0);
+  });
+
+  it('warehouse nickname flows through to pickup_location in the Shiprocket payload', async () => {
+    const order = makeOrder();
+    const whObj = { shiprocketPickupNickname: 'Purnia-WH-1' };
+    const payload = shiprocket.buildOrderPayload(order, whObj);
+    expect(payload.pickup_location).toBe('Purnia-WH-1');
+  });
 });
+
 
 describe('shiprocket.cancelShipment', () => {
   it('cancels by AWB when one exists', async () => {

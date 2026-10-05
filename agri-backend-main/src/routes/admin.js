@@ -2052,10 +2052,15 @@ router.put('/orders/:id/assign-warehouse', async (req, res) => {
       await runAssignment({});
     }
 
-    // Trigger autoCreateShipment if order is paid or COD
+    // Trigger shipment booking after warehouse assignment.
+    // IMPORTANT: populate items.product BEFORE createShipment so that dimensions,
+    // weight and productId are all available for the Shiprocket/AWB payload.
     const shipping = require('../utils/shipping');
     try {
       if (shipping.isConfigured() && !order.shipping?.trackingNumber) {
+        // Populate the fields that shiprocket.buildOrderPayload needs
+        await order.populate('items.product', 'name productId weight dimensions');
+
         // Resolve carrier: (1) admin-chosen via UI, (2) already stored on order, (3) env default
         const VALID_PROVIDERS = ['shiprocket', 'ekart'];
         const resolvedProvider =
@@ -2071,6 +2076,12 @@ router.put('/orders/:id/assign-warehouse', async (req, res) => {
         if (order.status === 'pending' || order.status === 'confirmed') {
           order.status = 'processing';
         }
+        order.timeline.push({
+          status: 'shipment_created',
+          message: `Shipment booked via ${shipment.carrier}. AWB: ${shipment.awbNumber}`,
+          timestamp: new Date(),
+          updatedBy: req.user._id
+        });
         await order.save();
       }
     } catch (shipErr) {
