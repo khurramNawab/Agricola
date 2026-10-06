@@ -19,9 +19,17 @@ const MIN_PARCEL_KG = 0.5;
 
 /** Weight in kg from a value+unit pair, e.g. (250, 'g') -> 0.25. */
 const toKg = (value, unit) => {
-  const n = Number(value);
+  let n = Number(value);
   if (!Number.isFinite(n) || n <= 0) return null;
-  return n * (KG_PER_UNIT[String(unit || 'kg').toLowerCase()] ?? 1);
+  let u = String(unit || 'kg').toLowerCase();
+
+  // Safety guard: retail FMCG pouches (e.g. tea, makhana, seeds) entered as "200 kg" or "250 kg"
+  // are almost certainly intended as grams (0.2kg / 0.25kg).
+  if (n >= 25 && (u === 'kg' || u === 'kgs' || u === 'kilogram' || u === 'kilograms')) {
+    u = 'g';
+  }
+
+  return n * (KG_PER_UNIT[u] ?? 1);
 };
 
 /**
