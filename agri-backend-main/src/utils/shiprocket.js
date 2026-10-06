@@ -135,20 +135,26 @@ const buildOrderPayload = (order, warehouse = null) => {
   const firstName = nameParts[0] || 'Customer';
   const lastName = nameParts.slice(1).join(' ');
 
+  let street = String(addr?.street || '').trim();
+  if (street.length < 10) {
+    const extra = [addr?.city, addr?.state, addr?.pincode].filter(Boolean).join(', ');
+    street = street ? `${street}, ${extra}` : extra || 'Main Road, Center';
+  }
+
   const payload = {
     order_id: order.orderId,
     order_date: new Date(order.createdAt || Date.now()).toISOString().slice(0, 19).replace('T', ' '),
     pickup_location: pickupLoc,
 
     billing_customer_name: firstName,
-    billing_last_name: lastName,
-    billing_address: addr.street,
-    billing_city: addr.city,
+    billing_last_name: lastName || '',
+    billing_address: street,
+    billing_city: addr.city || 'City',
     billing_pincode: String(addr.pincode),
-    billing_state: addr.state,
+    billing_state: addr.state || 'State',
     billing_country: addr.country || 'India',
-    billing_email: order.email || process.env.STORE_ORDER_EMAIL || '',
-    billing_phone: digits10(addr.phone),
+    billing_email: order.email || addr.email || process.env.STORE_ORDER_EMAIL || 'updates@agricola.co.in',
+    billing_phone: digits10(addr.phone || order.phone),
     shipping_is_billing: true,
 
     order_items: (() => {
@@ -176,7 +182,7 @@ const buildOrderPayload = (order, warehouse = null) => {
     })(),
 
     payment_method: isCOD ? 'COD' : 'Prepaid',
-    sub_total: Math.max(1, Math.round(order.pricing.subtotal - (order.pricing.discount || 0))),
+    sub_total: Math.max(1, Math.round(isCOD ? (order.pricing?.total ?? order.pricing?.subtotal) : (order.pricing?.subtotal - (order.pricing?.discount || 0)))),
     ...parcel
   };
 
