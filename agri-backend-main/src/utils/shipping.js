@@ -176,14 +176,25 @@ module.exports = {
   autoCreateShipment: async (order) => {
     try {
       if (process.env.AUTO_CREATE_SHIPMENT !== 'true') return null;
-      // Always respect the manual-assignment gate regardless of ENABLE_MULTI_WAREHOUSE.
-      // All new orders default awaitingWarehouseAssignment=true (see Order schema), so
-      // shipments are only auto-booked after admin explicitly assigns a warehouse (which
-      // clears this flag via the warehouse-assignment route).
-      if (order.awaitingWarehouseAssignment) return null;
       const client = clientFor(providerOfOrder(order));
       if (!client.isConfigured()) return null;
       if (order.shipping?.trackingNumber) return null; // already shipped
+
+      // If warehouse is not yet assigned, auto-assign active default warehouse
+      if (!order.warehouse) {
+        try {
+          const Warehouse = require('../models/Warehouse');
+          const defaultWh = await Warehouse.findOne({ isDefault: true, status: 'active' }) || await Warehouse.findOne({ status: 'active' });
+          if (defaultWh) {
+            order.warehouse = defaultWh._id;
+            order.awaitingWarehouseAssignment = false;
+          }
+        } catch (whErr) {
+          console.warn(`Could not auto-assign default warehouse for ${order.orderId}:`, whErr.message);
+        }
+      }
+
+      if (order.awaitingWarehouseAssignment && !order.warehouse) return null;
 
       if (typeof order.populate === 'function') {
         await order.populate('items.product', 'name productId weight dimensions');

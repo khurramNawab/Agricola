@@ -301,32 +301,69 @@ const createShipment = async (order, { serviceType, courierId, warehouse } = {})
     throw new Error(created?.message || 'Failed to create Shiprocket order');
   }
 
-  // Pick the courier we quoted at checkout so the charged and billed rates agree.
-  let chosenCourierId = courierId || Number(process.env.SHIPROCKET_COURIER_ID) || null;
-  if (!chosenCourierId) {
+  const assignedWh = warehouse || (order.warehouse && typeof order.warehouse === 'object' ? order.warehouse : null);
+  const fromPincode = assignedWh?.address?.pincode || warehousePincode();
+
+  // Fetch available couriers for the exact origin-to-destination lane
+  let availableCouriers = [];
+  try {
+    const rates = await getRates({
+      fromPincode,
+      toPincode: order.shippingAddress.pincode,
+      weight: payload.weight,
+      declaredValue: payload.sub_total,
+      codAmount: order.paymentMethod === 'cod' ? (order.pricing?.total || payload.sub_total) : 0
+    });
+    availableCouriers = rates.couriers || [];
+  } catch (ratesErr) {
+    console.warn(`Shiprocket rate lookup failed for ${order.orderId}:`, ratesErr.message);
+  }
+
+  // Build ordered list of couriers to attempt for AWB assignment
+  const couriersToTry = [];
+  if (courierId) {
+    couriersToTry.push({ courierId: Number(courierId) });
+  }
+  if (process.env.SHIPROCKET_COURIER_ID && !couriersToTry.some(c => c.courierId === Number(process.env.SHIPROCKET_COURIER_ID))) {
+    couriersToTry.push({ courierId: Number(process.env.SHIPROCKET_COURIER_ID) });
+  }
+  for (const c of availableCouriers) {
+    if (!couriersToTry.some(item => item.courierId === c.courierId)) {
+      couriersToTry.push(c);
+    }
+  }
+  // Also try Shiprocket auto-assignment (no courier_id) as last resort
+  couriersToTry.push({ courierId: null });
+
+  let awbRes = null;
+  let awb = null;
+  let lastAwbError = null;
+
+  for (const candidate of couriersToTry) {
     try {
-      const { couriers } = await getRates({
-        toPincode: order.shippingAddress.pincode,
-        weight: payload.weight,
-        declaredValue: payload.sub_total,
-        codAmount: order.paymentMethod === 'cod' ? order.pricing.total : 0
-      });
-      if (couriers.length) chosenCourierId = couriers[0].courierId;
-    } catch (error) {
-      // Fall through: Shiprocket auto-selects per the account's courier priority.
-      console.error(`Courier pre-selection failed for ${order.orderId}, letting Shiprocket choose:`, error.message);
+      const awbBody = { shipment_id: shipmentId };
+      if (candidate.courierId) awbBody.courier_id = candidate.courierId;
+
+      const res = isMock()
+        ? mock.assignAwb(awbBody)
+        : (await authed({ method: 'post', url: '/v1/external/courier/assign/awb', data: awbBody })).data;
+
+      const data = res?.response?.data || {};
+      if (data.awb_code) {
+        awbRes = res;
+        awb = data;
+        break;
+      } else if (res?.message) {
+        lastAwbError = new Error(res.message);
+      }
+    } catch (err) {
+      lastAwbError = err;
+      console.warn(`Shiprocket AWB assignment attempt failed (courier: ${candidate.courierId || 'auto'}) for ${order.orderId}:`, err.response?.data?.message || err.message);
     }
   }
 
-  const awbBody = { shipment_id: shipmentId };
-  if (chosenCourierId) awbBody.courier_id = chosenCourierId;
-  const awbRes = isMock()
-    ? mock.assignAwb(awbBody)
-    : (await authed({ method: 'post', url: '/v1/external/courier/assign/awb', data: awbBody })).data;
-
-  const awb = awbRes?.response?.data || {};
-  if (!awb.awb_code) {
-    throw new Error(awbRes?.message || 'Failed to assign a Shiprocket AWB');
+  if (!awb || !awb.awb_code) {
+    throw lastAwbError || new Error(awbRes?.message || 'Failed to assign a Shiprocket AWB');
   }
 
   let pickupScheduled = false;
