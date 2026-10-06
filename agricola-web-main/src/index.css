@@ -1,4 +1,3 @@
-@import "material-symbols/outlined.css";
 @import "tailwindcss";
 
 @layer base {
@@ -76,27 +75,16 @@
   box-shadow: 0 12px 30px -8px rgba(30, 58, 31, 0.08);
 }
 
-/* Material Symbols & Material Icons Embedded @font-face */
+/* Direct Font-Face and Class for Material Symbols Outlined */
 @font-face {
   font-family: 'Material Symbols Outlined';
   font-style: normal;
   font-weight: 100 700;
-  font-display: block;
-  src: url(https://fonts.gstatic.com/s/materialsymbolsoutlined/v240/kJF1BvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oDMzByHX9rA6RzaxHMPdY43zj-jCxv3fzvRNU22ZXGJpEpjC_1n-q_4MrImHCIJIZrDCvHOejbd5zrDAt.woff2) format('woff2');
+  src: url('https://fonts.gstatic.com/s/materialsymbolsoutlined/v375/kJF1BvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oDMzByHX9rA6RzaxHMPdY43zj-jCxv3fzvRNU22ZXGJpEpjC_1v-p_4MrImHCIJIZrDCvHOem.ttf') format('truetype');
 }
 
-@font-face {
-  font-family: 'Material Icons';
-  font-style: normal;
-  font-weight: 400;
-  font-display: block;
-  src: url(https://fonts.gstatic.com/s/materialicons/v143/flUhRq6tzZclQEJ-Vdg-IuiaDsNcIhQ8tQ.woff2) format('woff2');
-}
-
-.material-symbols-outlined,
-.material-icons,
-[class*="material-symbols"] {
-  font-family: 'Material Symbols Outlined', 'Material Icons' !important;
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined' !important;
   font-weight: normal !important;
   font-style: normal !important;
   font-size: 24px;
@@ -107,10 +95,6 @@
   white-space: nowrap;
   word-wrap: normal;
   direction: ltr;
-  font-feature-settings: 'liga' 1;
-  -webkit-font-feature-settings: 'liga' 1;
-  -moz-font-feature-settings: 'liga' 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
 }
