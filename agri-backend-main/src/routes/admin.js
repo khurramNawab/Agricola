@@ -1481,6 +1481,8 @@ const toAdminOrder = (order) => {
     customer: user ? user.name || '—' : '—',
     email: user ? user.email || null : null,
     items: Array.isArray(order.items) ? order.items.length : 0,
+    totalUnits: Array.isArray(order.items) ? order.items.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0) : 0,
+    totalQuantity: Array.isArray(order.items) ? order.items.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0) : 0,
     amount: order.pricing ? order.pricing.total : 0,
     paymentMethod: PAYMENT_METHOD_LABEL[order.paymentMethod] || order.paymentMethod,
     paymentStatus: PAYMENT_STATUS_LABEL[order.paymentStatus] || order.paymentStatus,

@@ -552,7 +552,7 @@ export default function OrderDetailModal({ order, onClose, onStatusUpdated }: Or
           {order.items.length > 0 && (
             <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-2xs">
               <h4 className="text-xs font-bold uppercase tracking-wider text-[#434936] mb-3">
-                Order Items ({order.items.length})
+                Order Items ({order.items.reduce((acc, it) => acc + (Number(it.quantity) || 1), 0)} Units{order.items.length > 1 ? ` • ${order.items.length} lines` : ""})
               </h4>
               <div className="divide-y divide-gray-100 text-xs">
                 {order.items.map((it, i) => (

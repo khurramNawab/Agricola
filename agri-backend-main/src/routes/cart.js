@@ -91,6 +91,20 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
+const normalizeWeight = (weight, product) => {
+  const w = String(weight || '').trim();
+  if (w && w.toLowerCase() !== 'standard' && w.toLowerCase() !== 'default') {
+    return w;
+  }
+  if (Array.isArray(product?.sizes) && product.sizes.length === 1) {
+    return product.sizes[0];
+  }
+  if (Array.isArray(product?.variantStocks) && product.variantStocks.length === 1 && product.variantStocks[0].size) {
+    return product.variantStocks[0].size;
+  }
+  return w || (product?.sizes?.[0] || 'Standard');
+};
+
 // @desc    Add item to cart
 // @route   POST /api/v1/cart/items
 // @access  Private
@@ -115,11 +129,14 @@ router.post('/items', authenticate, async (req, res) => {
     }
 
     const cart = await getOrCreateCart(req.user._id);
+    const resolvedWeight = normalizeWeight(weight, product);
 
     // Merge with an existing line of the same product + weight
-    const existing = cart.items.find(
-      (i) => i.product.toString() === product._id.toString() && (i.weight || null) === (weight || null)
-    );
+    const existing = cart.items.find((i) => {
+      if (i.product.toString() !== product._id.toString()) return false;
+      const curW = normalizeWeight(i.weight, product);
+      return curW.toLowerCase() === resolvedWeight.toLowerCase();
+    });
     const newQty = (existing ? existing.qty : 0) + quantity;
 
     if (product.stock < newQty) {
@@ -131,8 +148,9 @@ router.post('/items', authenticate, async (req, res) => {
 
     if (existing) {
       existing.qty = newQty;
+      existing.weight = resolvedWeight;
     } else {
-      cart.items.push({ product: product._id, weight: weight || null, qty: quantity });
+      cart.items.push({ product: product._id, weight: resolvedWeight, qty: quantity });
     }
     await cart.save();
 

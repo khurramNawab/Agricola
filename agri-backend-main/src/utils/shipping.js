@@ -180,21 +180,10 @@ module.exports = {
       if (!client.isConfigured()) return null;
       if (order.shipping?.trackingNumber) return null; // already shipped
 
-      // If warehouse is not yet assigned, auto-assign active default warehouse
-      if (!order.warehouse) {
-        try {
-          const Warehouse = require('../models/Warehouse');
-          const defaultWh = await Warehouse.findOne({ isDefault: true, status: 'active' }) || await Warehouse.findOne({ status: 'active' });
-          if (defaultWh) {
-            order.warehouse = defaultWh._id;
-            order.awaitingWarehouseAssignment = false;
-          }
-        } catch (whErr) {
-          console.warn(`Could not auto-assign default warehouse for ${order.orderId}:`, whErr.message);
-        }
+      // Multi-warehouse gate: orders awaiting admin warehouse assignment must NOT auto-book to Shiprocket
+      if (order.awaitingWarehouseAssignment || !order.warehouse) {
+        return null;
       }
-
-      if (order.awaitingWarehouseAssignment && !order.warehouse) return null;
 
       if (typeof order.populate === 'function') {
         await order.populate('items.product', 'name productId weight dimensions');

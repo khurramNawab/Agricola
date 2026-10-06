@@ -237,11 +237,13 @@ export const StorefrontProvider: React.FC<{ children: React.ReactNode }> = ({
       // Guest / Local Cart logic
       setCart((currentCart) => {
         const items = [...currentCart.items];
-        const matchIdx = items.findIndex(
-          (i) =>
-            (i.productId === productId || i.id === productId) &&
-            (i.weight || null) === (weight || null)
-        );
+        const normalizedWeight = String(weight || "Standard").trim().toLowerCase();
+        const matchIdx = items.findIndex((i) => {
+          const sameProduct = i.productId === productId || i.id === productId;
+          if (!sameProduct) return false;
+          const curW = String(i.weight || "Standard").trim().toLowerCase();
+          return curW === normalizedWeight || ((curW === "standard" || !curW) && (normalizedWeight === "standard" || !normalizedWeight));
+        });
 
         const unitPrice = Number(meta?.price || 0);
 
@@ -250,6 +252,7 @@ export const StorefrontProvider: React.FC<{ children: React.ReactNode }> = ({
           const newQty = existing.qty + qty;
           items[matchIdx] = {
             ...existing,
+            weight: weight || existing.weight || "Standard",
             qty: newQty,
             lineTotal: existing.price * newQty,
             image: meta?.image || existing.image,

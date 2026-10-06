@@ -481,7 +481,7 @@ export default function OrderDetails() {
                 <div>
                   <h3 className="text-lg font-black text-[#1e3a1f]">Ordered Superfoods &amp; Harvests</h3>
                   <span className="text-xs text-[#434936]">
-                    {order.items.length} {order.items.length === 1 ? "Item" : "Items"} packed in nitrogen-flushed eco pouches
+                    {order.items.reduce((acc, it) => acc + (Number((it as any).quantity || it.qty) || 1), 0)} {order.items.reduce((acc, it) => acc + (Number((it as any).quantity || it.qty) || 1), 0) === 1 ? "Item" : "Items"} packed in nitrogen-flushed eco pouches
                   </span>
                 </div>
                 <span className="text-xs font-bold text-[#486800] bg-[#c9ecc4] px-3 py-1 rounded-full">
