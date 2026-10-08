@@ -101,10 +101,12 @@ const CATEGORY_FALLBACKS: Record<string, string> = {
       {/* Product Information */}
       <div className="flex flex-col flex-1 justify-between gap-3">
         <div>
-        {/* Organic Badge */}
-        <span className="text-[11px] font-semibold text-[#486800] block uppercase tracking-wider">
-          🌿 100% Organic
-        </span>
+        {/* Organic Badge - only shown if product is organic */}
+        {product.isOrganic && (
+          <span className="text-[11px] font-semibold text-[#486800] block uppercase tracking-wider mb-0.5">
+            🌿 Organic Product
+          </span>
+        )}
           <Link to={`/products/${product.id}`}>
             <h3 className="text-sm font-bold text-[#1b1c1a] group-hover:text-[#486800] transition-colors line-clamp-2 leading-snug mt-0.5">
               {product.title}

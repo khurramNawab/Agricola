@@ -703,20 +703,39 @@ export default function AddProductModal({ isOpen, onClose, onSubmit, categories,
                 })()}
               </div>
 
-              <div>
-                <label className="flex cursor-pointer items-center gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-gray-50/80 rounded-xl border border-gray-200">
+                <label className="flex cursor-pointer items-start gap-2.5 p-1">
+                  <input
+                    type="checkbox"
+                    checked={formData.isOrganic}
+                    onChange={(e) => setFormData({ ...formData, isOrganic: e.target.checked })}
+                    className="w-4 h-4 mt-0.5 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                  />
+                  <div>
+                    <span className="text-sm font-semibold text-gray-800 flex items-center gap-1">
+                      <span>🌿 Organic Product</span>
+                    </span>
+                    <span className="text-[11px] text-gray-500 block leading-tight mt-0.5">
+                      Shows &ldquo;Organic Product&rdquo; badge on storefront &amp; cards. Uncheck if not organic.
+                    </span>
+                  </div>
+                </label>
+
+                <label className="flex cursor-pointer items-start gap-2.5 p-1">
                   <input
                     type="checkbox"
                     checked={formData.featured}
                     onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
-                    className="w-4 h-4 rounded border-gray-300"
+                    className="w-4 h-4 mt-0.5 rounded border-gray-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
                   />
-                  <span className="text-sm font-medium text-gray-700">
-                    Mark as Best Seller{' '}
-                    <span className="font-normal text-gray-400">
-                      (shown in “Our Best Sellers” on the homepage)
+                  <div>
+                    <span className="text-sm font-semibold text-gray-800 flex items-center gap-1">
+                      <span>⭐ Featured Best Seller</span>
                     </span>
-                  </span>
+                    <span className="text-[11px] text-gray-500 block leading-tight mt-0.5">
+                      Spotlighted in &ldquo;Our Best Sellers&rdquo; section on homepage.
+                    </span>
+                  </div>
                 </label>
               </div>
 

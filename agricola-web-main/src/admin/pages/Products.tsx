@@ -143,6 +143,22 @@ export default function Products() {
     }
   };
 
+  const toggleOrganic = async (p: AdminProduct) => {
+    setNotice("");
+    const nextOrganic = !p.isOrganic;
+    setProducts((prev) =>
+      prev.map((x) => (x.id === p.id ? { ...x, isOrganic: nextOrganic } : x))
+    );
+    try {
+      await updateProduct(p.id, { isOrganic: nextOrganic });
+    } catch (err) {
+      setProducts((prev) =>
+        prev.map((x) => (x.id === p.id ? { ...x, isOrganic: p.isOrganic } : x))
+      );
+      handleError(err, "Failed to update organic status.");
+    }
+  };
+
   const handleDeleteProduct = async (p: AdminProduct) => {
     if (!window.confirm(`Delete product "${p.name}"?`)) return;
     setNotice("");
@@ -323,9 +339,22 @@ export default function Products() {
                         </span>
                       </td>
                       <td className="px-6 py-3.5 text-center">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#c9ecc4] text-[#486800] font-bold text-[10px]">
-                          🌿 100% Organic
-                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleOrganic(product)}
+                          title={product.isOrganic ? "Organic Product — click to remove" : "Not Organic — click to mark as Organic Product"}
+                          className="rounded-full transition-transform hover:scale-105 cursor-pointer inline-flex items-center justify-center"
+                        >
+                          {product.isOrganic ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#c9ecc4] text-[#486800] font-bold text-[10px] shadow-2xs hover:bg-[#b8e6b2] transition-colors">
+                              🌿 Organic Product
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-gray-400 font-medium text-xs hover:bg-gray-100 hover:text-gray-600 transition-colors">
+                              —
+                            </span>
+                          )}
+                        </button>
                       </td>
                       <td className="px-6 py-3.5 text-center">
                         <button

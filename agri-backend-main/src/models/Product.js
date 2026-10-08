@@ -84,6 +84,10 @@ const productSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isOrganic: {
+    type: Boolean,
+    default: true
+  },
   status: {
     type: String,
     enum: ['active', 'inactive', 'out_of_stock'],
