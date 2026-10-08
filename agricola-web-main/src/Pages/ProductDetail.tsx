@@ -75,9 +75,6 @@ export default function ProductDetail() {
   const [pincodeResult, setPincodeResult] = useState<PincodeServiceability | null>(null);
   const [pincodeError, setPincodeError] = useState("");
 
-  // Bundle Add state
-  const [bundleAdding, setBundleAdding] = useState(false);
-  const [bundleAdded, setBundleAdded] = useState(false);
 
   // Tabs: origin | nutrition | recipes | reviews
   const [activeTab, setActiveTab] = useState<"origin" | "nutrition" | "recipes" | "reviews">("origin");
@@ -296,27 +293,6 @@ export default function ProductDetail() {
     };
 
     doAdd();
-  };
-
-  const handleBuyBundle = async () => {
-    if (!product) return;
-    setBundleAdding(true);
-    try {
-      await addItem(product.mongoId || product.id, currentPack.size, 1, {
-        productId: product.id,
-        title: product.title,
-        price: currentPack.price,
-        image: product.images[0] || product.image,
-        weight: currentPack.size,
-        inStock: product.inStock,
-      });
-      setBundleAdded(true);
-      setTimeout(() => setBundleAdded(false), 2500);
-    } catch {
-      // ignore
-    } finally {
-      setBundleAdding(false);
-    }
   };
 
   const handleSubmitReview = async (e: FormEvent) => {
@@ -802,95 +778,6 @@ export default function ProductDetail() {
                 <span className="text-[11px] font-bold text-[#1e3a1f] group-hover:text-[#486800]">Easy 7-Day Return</span>
                 <span className="text-[10px] text-[#486800] underline">View Policy</span>
               </Link>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Frequently Bought Together Bundle Card (Roaster's Essential Organic Trio) ── */}
-        <div className="bg-white rounded-3xl p-6 sm:p-8 mb-16 shadow-xs border border-gray-200/80">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
-            <div>
-              <span className="bg-[#ffdcc3] text-[#904d00] text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full">
-                Bundle &amp; Save
-              </span>
-              <h3 className="text-xl sm:text-2xl font-black text-[#1e3a1f] mt-1">
-                Roaster&apos;s Essential Organic Trio
-              </h3>
-              <p className="text-xs text-[#434936] mt-0.5">
-                Everything required to roast aromatic, crispy makhana snack bowls in under 5 minutes.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-4 shrink-0">
-              <div className="flex flex-col text-right">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-xl font-black text-[#1e3a1f]">₹1,150</span>
-                  <span className="text-xs text-gray-400 line-through">₹1,330</span>
-                </div>
-                <span className="text-[11px] text-[#486800] font-bold">You Save ₹180 combo discount</span>
-              </div>
-              <button
-                type="button"
-                onClick={handleBuyBundle}
-                disabled={bundleAdding}
-                className="bg-[#c9ecc4] hover:bg-[#84b817] hover:text-white text-[#1e3a1f] transition-all text-xs px-5 py-3 rounded-full font-bold shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                <ShoppingBag size={15} />
-                <span>{bundleAdding ? "Adding Bundle…" : bundleAdded ? "Bundle Added ✓" : "Buy Bundle"}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* 3 Bundled Items Flex Row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Item 1 */}
-            <div className="bg-[#fbf9f6] p-4 rounded-2xl flex items-center gap-3.5 shadow-2xs border border-gray-100">
-              <div className="w-16 h-16 rounded-xl bg-gray-200 overflow-hidden shrink-0">
-                <img
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTp0d06pgGpB8Ks1UoOrVwoQs2qHae_sOmmNyNVvKM5joQF_Y3d4dUScHUMKDihF-pdtd7pNcRx9tWiTX-R98Tyqynefx8VOQ6OSUJgDDT_Po9rh1wgOm85H4ZMTmNEG-Ju2Fg-xIbs4QLstkUvWOKynwd-ZfGj1QivZZeje5DVRDSkFd62bQgZHaqK04VXXa6_g-Sd9yMI4GfzNrVN_w1NHj1QNe7fDe_J-meqGe2oyXzZoU6gBhA"
-                  alt="Mithila Jumbo Makhana"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-bold text-[#1e3a1f] truncate">Mithila Jumbo Makhana</span>
-                <span className="text-[11px] text-gray-500">500g Pouch</span>
-                <span className="text-xs font-black text-[#486800] mt-1">₹720</span>
-              </div>
-              <div className="ml-auto text-[#486800] font-bold text-lg hidden md:block">+</div>
-            </div>
-
-            {/* Item 2 */}
-            <div className="bg-[#fbf9f6] p-4 rounded-2xl flex items-center gap-3.5 shadow-2xs border border-gray-100">
-              <div className="w-16 h-16 rounded-xl bg-gray-200 overflow-hidden shrink-0">
-                <img
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3kFeTNqz5uTwW0SXnvfyf4SgC6u1Ovh4XqaOhyMMur7Zs5gMsYSWq3RTLoMVqMfNYStsQWWNq351-B7yhr27ewtkjbTnOATG6NY62VBsH23YHFjfzx-EAtrvF6-Yzs7TJF9hFSHSPHGl-TC05UiudMriYsJpBhgbSyKwJBw0WfC9VvZ60gjoW83FJ0Y0y3jfeNF1OnBRUEPzmwBNBX4sDPGL5sKeUUDvMfJ1x3TOUxnJCtz4EOPez"
-                  alt="Vedic A2 Gir Cow Ghee"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-bold text-[#1e3a1f] truncate">Vedic A2 Gir Cow Ghee</span>
-                <span className="text-[11px] text-gray-500">250ml Glass Jar</span>
-                <span className="text-xs font-black text-[#486800] mt-1">₹480</span>
-              </div>
-              <div className="ml-auto text-[#486800] font-bold text-lg hidden md:block">+</div>
-            </div>
-
-            {/* Item 3 */}
-            <div className="bg-[#fbf9f6] p-4 rounded-2xl flex items-center gap-3.5 shadow-2xs border border-gray-100">
-              <div className="w-16 h-16 rounded-xl bg-gray-200 overflow-hidden shrink-0">
-                <img
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZqpP6e4-3V_oHXLI3O0T_UmwCEzDGVMSSUI0mFt_vb-Anc4rw2rWMmLHhWb3eK_WpnDLCEThF9dbe-ZW8RQmO1_Q9qloI4g2odyimuPmpTGVpkz4_Qblkb3nEkIe24Cve6p9wQ2ICv6n7ZeOZV5MdjthPCgWcEZdtazLYis5T81PTsJgGwMgnk7Zcy4ngLBRHYFfrV6FPs0HJojWZQohtMRNxZRg8aARjUZmLQXmSRYNiHniBT7Ly"
-                  alt="Raw Himalayan Pink Salt"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-bold text-[#1e3a1f] truncate">Raw Himalayan Pink Salt</span>
-                <span className="text-[11px] text-gray-500">200g Kraft Pouch</span>
-                <span className="text-xs font-black text-[#486800] mt-1">₹130</span>
-              </div>
             </div>
           </div>
         </div>
